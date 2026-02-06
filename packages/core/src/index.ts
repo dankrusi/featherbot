@@ -25,8 +25,20 @@ export type {
 	InboundMessage,
 	LLMResponse,
 	LLMToolCall,
+	LLMUsage,
 	OutboundMessage,
 	SessionKey,
 	ToolDefinition,
 	ToolResult,
 } from "./types.js";
+export { createProvider, resolveModel, VercelLLMProvider, withRetry } from "./provider/index.js";
+export type { RetryOptions } from "./provider/index.js";
+export type {
+	GenerateOptions,
+	GenerateResult,
+	LLMMessage,
+	LLMProvider,
+	StreamOptions,
+	StreamPart,
+	StreamResult,
+} from "./provider/index.js";

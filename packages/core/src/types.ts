@@ -38,9 +38,17 @@ export interface LLMToolCall {
 	arguments: Record<string, unknown>;
 }
 
+export interface LLMUsage {
+	promptTokens: number;
+	completionTokens: number;
+	totalTokens: number;
+}
+
 export interface LLMResponse {
 	content: string | null;
 	toolCalls: LLMToolCall[];
+	usage: LLMUsage;
+	finishReason: string;
 }
 
 export type SessionKey = `${string}:${string}`;
