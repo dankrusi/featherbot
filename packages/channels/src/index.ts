@@ -1,1 +1,8 @@
-export const VERSION = "0.0.1";
+export { BusAdapter } from "./adapter.js";
+export type { AgentProcessor, BusAdapterOptions } from "./adapter.js";
+export { BaseChannel } from "./base.js";
+export { ChannelManager } from "./manager.js";
+export type { ChannelManagerOptions } from "./manager.js";
+export { TerminalChannel } from "./terminal.js";
+export type { TerminalChannelOptions } from "./terminal.js";
+export type { ChannelOptions, ChannelStatus } from "./types.js";

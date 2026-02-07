@@ -30,7 +30,18 @@ importers:
         specifier: ^3.0.4
         version: 3.2.4(@types/node@25.2.1)
 
-  packages/channels: {}
+  packages/channels:
+    dependencies:
+      '@featherbot/bus':
+        specifier: workspace:*
+        version: link:../bus
+      '@featherbot/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      vitest:
+        specifier: ^3.0.4
+        version: 3.2.4(@types/node@25.2.1)
 
   packages/cli: {}
 

@@ -17,6 +17,13 @@
 		"lint": "biome check src/",
 		"test": "vitest run --passWithNoTests"
 	},
+	"dependencies": {
+		"@featherbot/bus": "workspace:*",
+		"@featherbot/core": "workspace:*"
+	},
+	"devDependencies": {
+		"vitest": "^3.0.4"
+	},
 	"engines": {
 		"node": ">=20"
 	}
