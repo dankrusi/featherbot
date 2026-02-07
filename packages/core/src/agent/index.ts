@@ -24,6 +24,7 @@ export function createAgentLoop(
 		onStepFinish: options?.onStepFinish,
 		workspacePath: options?.workspacePath,
 		memoryStore: options?.memoryStore,
+		sessionConfig: config.session,
 	});
 }
 

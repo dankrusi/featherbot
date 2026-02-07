@@ -2,9 +2,16 @@ import { describe, expect, it } from "vitest";
 import { FeatherBotConfigSchema } from "../config/schema.js";
 import { createAgentLoop } from "./index.js";
 
+function parseConfig(overrides?: Record<string, unknown>) {
+	return FeatherBotConfigSchema.parse({
+		session: { dbPath: "" },
+		...overrides,
+	});
+}
+
 describe("createAgentLoop", () => {
 	it("creates an AgentLoop from default config without throwing", () => {
-		const config = FeatherBotConfigSchema.parse({});
+		const config = parseConfig();
 		const agent = createAgentLoop(config);
 
 		expect(agent).toBeDefined();
@@ -13,7 +20,7 @@ describe("createAgentLoop", () => {
 	});
 
 	it("creates an AgentLoop with custom system prompt", () => {
-		const config = FeatherBotConfigSchema.parse({});
+		const config = parseConfig();
 		const agent = createAgentLoop(config, { systemPrompt: "You are a test bot." });
 
 		expect(agent).toBeDefined();
@@ -21,7 +28,7 @@ describe("createAgentLoop", () => {
 	});
 
 	it("creates an AgentLoop with onStepFinish callback", () => {
-		const config = FeatherBotConfigSchema.parse({});
+		const config = parseConfig();
 		const events: unknown[] = [];
 		const agent = createAgentLoop(config, {
 			onStepFinish: (event) => events.push(event),
@@ -32,7 +39,7 @@ describe("createAgentLoop", () => {
 	});
 
 	it("creates an AgentLoop from config with custom agent defaults", () => {
-		const config = FeatherBotConfigSchema.parse({
+		const config = parseConfig({
 			agents: {
 				defaults: {
 					model: "openai/gpt-4o",

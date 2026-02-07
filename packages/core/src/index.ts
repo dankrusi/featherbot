@@ -9,6 +9,7 @@ export {
 	FeatherBotConfigSchema,
 	ProviderConfigSchema,
 	ProviderEntrySchema,
+	SessionConfigSchema,
 	TelegramChannelConfigSchema,
 	ToolConfigSchema,
 	WebSearchToolConfigSchema,
@@ -19,6 +20,7 @@ export type {
 	ChannelConfig,
 	FeatherBotConfig,
 	ProviderConfig,
+	SessionConfig,
 	ToolConfig,
 } from "./config/schema.js";
 export { loadConfig } from "./config/loader.js";
@@ -83,3 +85,11 @@ export type {
 } from "./agent/index.js";
 export { createMemoryStore, FileMemoryStore } from "./memory/index.js";
 export type { MemoryStore } from "./memory/index.js";
+export {
+	createHistory,
+	createSessionStore,
+	initDatabase,
+	SessionStore,
+	SqliteHistory,
+} from "./session/index.js";
+export type { SessionRecord } from "./session/index.js";

@@ -1,6 +1,7 @@
 import { mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentConfig } from "../config/schema.js";
 import type { GenerateOptions, GenerateResult, LLMProvider } from "../provider/types.js";
@@ -592,6 +593,131 @@ describe("AgentLoop", () => {
 			const opts = getCallOpts(generateSpy, 0);
 			const systemMsg = opts.messages[0];
 			expect(systemMsg?.content).toContain("## Identity");
+		});
+	});
+
+	describe("session database integration", () => {
+		async function makeTempDbPath(): Promise<string> {
+			const raw = await mkdtemp(join(tmpdir(), "loop-session-test-"));
+			const dir = await realpath(raw);
+			return join(dir, "sessions.db");
+		}
+
+		it("persists messages with sessionDbPath", async () => {
+			const dbPath = await makeTempDbPath();
+			let callCount = 0;
+			const generateSpy = vi.fn<GenerateFn>(async () => {
+				callCount++;
+				return makeResult({ text: `Response ${callCount}` });
+			});
+
+			const loop = new AgentLoop({
+				provider: makeMockProvider(generateSpy),
+				toolRegistry: new ToolRegistry(),
+				config: makeConfig(),
+				sessionConfig: { dbPath, maxMessages: 50 },
+			});
+
+			await loop.processMessage(makeInbound("hello", { channel: "tg", chatId: "42" }));
+
+			// Verify messages were persisted in SQLite
+			const db = new Database(dbPath);
+			const rows = db.prepare("SELECT role, content FROM messages ORDER BY id ASC").all() as {
+				role: string;
+				content: string;
+			}[];
+			db.close();
+
+			expect(rows.length).toBe(2);
+			expect(rows[0]).toEqual({ role: "user", content: "hello" });
+			expect(rows[1]).toEqual({ role: "assistant", content: "Response 1" });
+		});
+
+		it("creates session metadata row", async () => {
+			const dbPath = await makeTempDbPath();
+
+			const loop = new AgentLoop({
+				provider: makeMockProvider(),
+				toolRegistry: new ToolRegistry(),
+				config: makeConfig(),
+				sessionConfig: { dbPath, maxMessages: 50 },
+			});
+
+			await loop.processMessage(makeInbound("hi", { channel: "telegram", chatId: "99" }));
+
+			const db = new Database(dbPath);
+			const row = db.prepare("SELECT * FROM sessions WHERE id = ?").get("telegram:99") as {
+				id: string;
+				channel: string;
+				chat_id: string;
+			};
+			db.close();
+
+			expect(row).toBeDefined();
+			expect(row.channel).toBe("telegram");
+			expect(row.chat_id).toBe("99");
+		});
+
+		it("falls back to InMemoryHistory without sessionConfig", async () => {
+			const generateSpy = vi.fn<GenerateFn>(async () => makeResult());
+
+			const loop = new AgentLoop({
+				provider: makeMockProvider(generateSpy),
+				toolRegistry: new ToolRegistry(),
+				config: makeConfig(),
+			});
+
+			await loop.processMessage(makeInbound("first"));
+			await loop.processMessage(makeInbound("second"));
+
+			// History should work (in-memory) — second call has history from first
+			const opts = getCallOpts(generateSpy, 1);
+			expect(opts.messages.length).toBe(4);
+		});
+
+		it("falls back to InMemoryHistory when dbPath is empty string", async () => {
+			const generateSpy = vi.fn<GenerateFn>(async () => makeResult());
+
+			const loop = new AgentLoop({
+				provider: makeMockProvider(generateSpy),
+				toolRegistry: new ToolRegistry(),
+				config: makeConfig(),
+				sessionConfig: { dbPath: "", maxMessages: 50 },
+			});
+
+			await loop.processMessage(makeInbound("first"));
+			await loop.processMessage(makeInbound("second"));
+
+			// History should work (in-memory) — second call has history from first
+			const opts = getCallOpts(generateSpy, 1);
+			expect(opts.messages.length).toBe(4);
+		});
+
+		it("reuses history instance for same session key", async () => {
+			const dbPath = await makeTempDbPath();
+			let callCount = 0;
+			const generateSpy = vi.fn<GenerateFn>(async () => {
+				callCount++;
+				return makeResult({ text: `R${callCount}` });
+			});
+
+			const loop = new AgentLoop({
+				provider: makeMockProvider(generateSpy),
+				toolRegistry: new ToolRegistry(),
+				config: makeConfig(),
+				sessionConfig: { dbPath, maxMessages: 50 },
+			});
+
+			await loop.processMessage(makeInbound("first", { channel: "tg", chatId: "1" }));
+			await loop.processMessage(makeInbound("second", { channel: "tg", chatId: "1" }));
+
+			// Second call should have history from first call
+			const opts = getCallOpts(generateSpy, 1);
+			const messages = opts.messages;
+			// system + history(user "first" + assistant "R1") + user "second"
+			expect(messages.length).toBe(4);
+			expect(messages[1]).toEqual({ role: "user", content: "first" });
+			expect(messages[2]).toEqual({ role: "assistant", content: "R1" });
 		});
 	});
 });

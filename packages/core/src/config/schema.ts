@@ -64,15 +64,22 @@ export const ToolConfigSchema = z.object({
 	restrictToWorkspace: z.boolean().default(false),
 });
 
+export const SessionConfigSchema = z.object({
+	dbPath: z.string().default("~/.featherbot/sessions.db"),
+	maxMessages: z.number().int().positive().default(50),
+});
+
 export const FeatherBotConfigSchema = z.object({
 	agents: z.object({ defaults: AgentConfigSchema.default({}) }).default({}),
 	channels: ChannelConfigSchema.default({}),
 	providers: ProviderConfigSchema.default({}),
 	tools: ToolConfigSchema.default({}),
+	session: SessionConfigSchema.default({}),
 });
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 export type ChannelConfig = z.infer<typeof ChannelConfigSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
+export type SessionConfig = z.infer<typeof SessionConfigSchema>;
 export type ToolConfig = z.infer<typeof ToolConfigSchema>;
 export type FeatherBotConfig = z.infer<typeof FeatherBotConfigSchema>;
