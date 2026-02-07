@@ -1,3 +1,6 @@
+import { mkdtemp, realpath, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentConfig } from "../config/schema.js";
 import type { GenerateOptions, GenerateResult, LLMProvider } from "../provider/types.js";
@@ -17,6 +20,7 @@ function makeConfig(overrides?: Partial<AgentConfig>): AgentConfig {
 		maxTokens: 8192,
 		temperature: 0.7,
 		maxToolIterations: 20,
+		bootstrapFiles: ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md", "IDENTITY.md"],
 		...overrides,
 	};
 }
@@ -480,6 +484,114 @@ describe("AgentLoop", () => {
 			// Should complete without error (no callback to invoke)
 			const result = await loop.processMessage(makeInbound("test"));
 			expect(result.text).toBe("Hello!");
+		});
+	});
+
+	describe("context builder integration", () => {
+		async function makeTempWorkspace(): Promise<string> {
+			const raw = await mkdtemp(join(tmpdir(), "loop-ctx-test-"));
+			return realpath(raw);
+		}
+
+		it("uses context builder when workspacePath is provided", async () => {
+			const ws = await makeTempWorkspace();
+			await writeFile(join(ws, "AGENTS.md"), "You are a test agent");
+			const generateSpy = vi.fn<GenerateFn>(async () => makeResult());
+
+			const loop = new AgentLoop({
+				provider: makeMockProvider(generateSpy),
+				toolRegistry: new ToolRegistry(),
+				config: makeConfig({ bootstrapFiles: ["AGENTS.md"] }),
+				workspacePath: ws,
+			});
+
+			await loop.processMessage(makeInbound("hello"));
+
+			const opts = getCallOpts(generateSpy, 0);
+			const systemMsg = opts.messages[0];
+			expect(systemMsg?.content).toContain("## Identity");
+			expect(systemMsg?.content).toContain("## AGENTS.md\nYou are a test agent");
+		});
+
+		it("includes session context from inbound message", async () => {
+			const ws = await makeTempWorkspace();
+			const generateSpy = vi.fn<GenerateFn>(async () => makeResult());
+
+			const loop = new AgentLoop({
+				provider: makeMockProvider(generateSpy),
+				toolRegistry: new ToolRegistry(),
+				config: makeConfig({ bootstrapFiles: [] }),
+				workspacePath: ws,
+			});
+
+			await loop.processMessage(makeInbound("hi", { channel: "telegram", chatId: "42" }));
+
+			const opts = getCallOpts(generateSpy, 0);
+			const systemMsg = opts.messages[0];
+			expect(systemMsg?.content).toContain("## Session");
+			expect(systemMsg?.content).toContain("Channel: telegram");
+			expect(systemMsg?.content).toContain("Chat ID: 42");
+		});
+
+		it("includes memory context when memoryStore is provided", async () => {
+			const ws = await makeTempWorkspace();
+			const generateSpy = vi.fn<GenerateFn>(async () => makeResult());
+			const mockMemoryStore = {
+				getMemoryContext: async () => "User prefers dark mode",
+				getRecentMemories: async () => "",
+				getMemoryFilePath: () => "",
+				getDailyNotePath: () => "",
+			};
+
+			const loop = new AgentLoop({
+				provider: makeMockProvider(generateSpy),
+				toolRegistry: new ToolRegistry(),
+				config: makeConfig({ bootstrapFiles: [] }),
+				workspacePath: ws,
+				memoryStore: mockMemoryStore,
+			});
+
+			await loop.processMessage(makeInbound("hi"));
+
+			const opts = getCallOpts(generateSpy, 0);
+			const systemMsg = opts.messages[0];
+			expect(systemMsg?.content).toContain("## Memory\nUser prefers dark mode");
+		});
+
+		it("falls back to static prompt when no workspacePath", async () => {
+			const generateSpy = vi.fn<GenerateFn>(async () => makeResult());
+
+			const loop = new AgentLoop({
+				provider: makeMockProvider(generateSpy),
+				toolRegistry: new ToolRegistry(),
+				config: makeConfig(),
+			});
+
+			await loop.processMessage(makeInbound("test"));
+
+			const opts = getCallOpts(generateSpy, 0);
+			expect(opts.messages[0]).toEqual({
+				role: "system",
+				content: "You are FeatherBot, a helpful AI assistant.",
+			});
+		});
+
+		it("processDirect uses context builder when workspacePath is provided", async () => {
+			const ws = await makeTempWorkspace();
+			const generateSpy = vi.fn<GenerateFn>(async () => makeResult());
+
+			const loop = new AgentLoop({
+				provider: makeMockProvider(generateSpy),
+				toolRegistry: new ToolRegistry(),
+				config: makeConfig({ bootstrapFiles: [] }),
+				workspacePath: ws,
+			});
+
+			await loop.processDirect("hello");
+
+			const opts = getCallOpts(generateSpy, 0);
+			const systemMsg = opts.messages[0];
+			expect(systemMsg?.content).toContain("## Identity");
 		});
 	});
 });

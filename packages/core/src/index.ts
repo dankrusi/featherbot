@@ -3,6 +3,7 @@ export const VERSION = "0.0.1";
 export {
 	AgentConfigSchema,
 	ChannelConfigSchema,
+	DEFAULT_BOOTSTRAP_FILES,
 	DiscordChannelConfigSchema,
 	ExecToolConfigSchema,
 	FeatherBotConfigSchema,
@@ -66,13 +67,17 @@ export type {
 export {
 	AgentLoop,
 	buildToolMap,
+	ContextBuilder,
 	createAgentLoop,
 	InMemoryHistory,
 } from "./agent/index.js";
 export type {
 	AgentLoopOptions,
 	AgentLoopResult,
+	ContextBuilderOptions,
+	ContextBuilderResult,
 	ConversationHistory,
+	SessionContext,
 	StepCallback,
 	StepEvent,
 } from "./agent/index.js";

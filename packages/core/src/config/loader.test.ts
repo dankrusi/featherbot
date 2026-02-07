@@ -26,6 +26,13 @@ describe("loadConfig", () => {
 		expect(config.agents.defaults.model).toBe("anthropic/claude-sonnet-4-5-20250929");
 		expect(config.agents.defaults.maxTokens).toBe(8192);
 		expect(config.agents.defaults.temperature).toBe(0.7);
+		expect(config.agents.defaults.bootstrapFiles).toEqual([
+			"AGENTS.md",
+			"SOUL.md",
+			"USER.md",
+			"TOOLS.md",
+			"IDENTITY.md",
+		]);
 		expect(config.channels.telegram.enabled).toBe(false);
 		expect(config.providers.anthropic.apiKey).toBe("");
 		expect(config.tools.restrictToWorkspace).toBe(false);
@@ -92,5 +99,18 @@ describe("loadConfig", () => {
 		writeFileSync(testConfigPath, "not valid json{{{");
 		const config = loadConfig(testConfigPath);
 		expect(config.agents.defaults.model).toBe("anthropic/claude-sonnet-4-5-20250929");
+	});
+
+	it("loads custom bootstrapFiles from JSON config", () => {
+		writeFileSync(
+			testConfigPath,
+			JSON.stringify({
+				agents: {
+					defaults: { bootstrapFiles: ["CUSTOM.md", "PERSONA.md"] },
+				},
+			}),
+		);
+		const config = loadConfig(testConfigPath);
+		expect(config.agents.defaults.bootstrapFiles).toEqual(["CUSTOM.md", "PERSONA.md"]);
 	});
 });

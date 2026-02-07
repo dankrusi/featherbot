@@ -1,4 +1,5 @@
 import type { AgentConfig } from "../config/schema.js";
+import type { MemoryStore } from "../memory/types.js";
 import type { LLMMessage, LLMProvider } from "../provider/types.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import type { LLMToolCall, LLMUsage, ToolResult } from "../types.js";
@@ -9,6 +10,8 @@ export interface AgentLoopOptions {
 	config: AgentConfig;
 	systemPrompt?: string;
 	onStepFinish?: StepCallback;
+	memoryStore?: MemoryStore;
+	workspacePath?: string;
 }
 
 export interface AgentLoopResult {

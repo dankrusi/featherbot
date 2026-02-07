@@ -1,11 +1,20 @@
 import { z } from "zod";
 
+export const DEFAULT_BOOTSTRAP_FILES = [
+	"AGENTS.md",
+	"SOUL.md",
+	"USER.md",
+	"TOOLS.md",
+	"IDENTITY.md",
+];
+
 export const AgentConfigSchema = z.object({
 	workspace: z.string().default("~/.featherbot/workspace"),
 	model: z.string().default("anthropic/claude-sonnet-4-5-20250929"),
 	maxTokens: z.number().int().positive().default(8192),
 	temperature: z.number().min(0).max(2).default(0.7),
 	maxToolIterations: z.number().int().positive().default(20),
+	bootstrapFiles: z.array(z.string()).default(DEFAULT_BOOTSTRAP_FILES),
 });
 
 export const TelegramChannelConfigSchema = z.object({

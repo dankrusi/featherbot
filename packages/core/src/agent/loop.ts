@@ -1,5 +1,7 @@
 import type { LLMMessage } from "../provider/types.js";
 import type { InboundMessage, SessionKey } from "../types.js";
+import { ContextBuilder } from "./context-builder.js";
+import type { SessionContext } from "./context-builder.js";
 import { InMemoryHistory } from "./history.js";
 import { buildToolMap } from "./tool-bridge.js";
 import type { AgentLoopOptions, AgentLoopResult, StepEvent } from "./types.js";
@@ -10,15 +12,29 @@ export class AgentLoop {
 	private readonly options: AgentLoopOptions;
 	private readonly sessions = new Map<SessionKey, InMemoryHistory>();
 	private readonly systemPrompt: string;
+	private readonly contextBuilder?: ContextBuilder;
 
 	constructor(options: AgentLoopOptions) {
 		this.options = options;
 		this.systemPrompt = options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+		if (options.workspacePath !== undefined) {
+			this.contextBuilder = new ContextBuilder({
+				workspacePath: options.workspacePath,
+				bootstrapFiles: options.config.bootstrapFiles,
+				agentName: "FeatherBot",
+				memoryStore: options.memoryStore,
+			});
+		}
 	}
 
 	async processMessage(inbound: InboundMessage): Promise<AgentLoopResult> {
 		const sessionKey: SessionKey = `${inbound.channel}:${inbound.chatId}`;
-		return this.run(sessionKey, inbound.content, this.systemPrompt);
+		const sessionContext: SessionContext = {
+			channelName: inbound.channel,
+			chatId: inbound.chatId,
+		};
+		const prompt = await this.resolveSystemPrompt(this.systemPrompt, sessionContext);
+		return this.run(sessionKey, inbound.content, prompt);
 	}
 
 	async processDirect(
@@ -26,7 +42,8 @@ export class AgentLoop {
 		options?: { systemPrompt?: string; sessionKey?: string },
 	): Promise<AgentLoopResult> {
 		const sessionKey: SessionKey = (options?.sessionKey as SessionKey) ?? "direct:default";
-		const prompt = options?.systemPrompt ?? this.systemPrompt;
+		const staticPrompt = options?.systemPrompt ?? this.systemPrompt;
+		const prompt = await this.resolveSystemPrompt(staticPrompt);
 		return this.run(sessionKey, message, prompt);
 	}
 
@@ -37,6 +54,17 @@ export class AgentLoop {
 			this.sessions.set(sessionKey, history);
 		}
 		return history;
+	}
+
+	private async resolveSystemPrompt(
+		fallback: string,
+		sessionContext?: SessionContext,
+	): Promise<string> {
+		if (this.contextBuilder === undefined) {
+			return fallback;
+		}
+		const result = await this.contextBuilder.build(sessionContext);
+		return result.systemPrompt;
 	}
 
 	private async run(
