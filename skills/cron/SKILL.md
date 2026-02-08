@@ -18,7 +18,8 @@ Use `action: "add"` with a `name`, `message`, and exactly ONE schedule type:
 
 - `cronExpr` — standard 5-field cron expression
 - `everySeconds` — fixed interval in seconds
-- `at` — ISO 8601 timestamp for a one-time reminder
+- `at` — ISO 8601 date-time for a one-time reminder (bare timestamps are interpreted in the user's timezone)
+- `relativeMinutes` — minutes from now for a one-time reminder (system computes exact time)
 
 ### List jobs
 
@@ -49,8 +50,15 @@ Use `action: "enable"` or `action: "disable"` with the `jobId`.
 - Every hour: `everySeconds: 3600`
 - Every 6 hours: `everySeconds: 21600`
 
-**Use `at`** for one-time reminders:
-- `at: "2026-02-09T15:00:00"` — once at Feb 9, 3:00 PM
+**Use `relativeMinutes`** for "in X minutes/hours" reminders:
+- "in 5 minutes": `relativeMinutes: 5`
+- "in 2 hours": `relativeMinutes: 120`
+- "in half an hour": `relativeMinutes: 30`
+
+**IMPORTANT:** Always prefer `relativeMinutes` for relative time requests. Do NOT compute ISO timestamps yourself.
+
+**Use `at`** for one-time reminders at a specific date/time:
+- `at: "2026-02-09T15:00:00"` — once at Feb 9, 3:00 PM (interpreted in the user's timezone)
 
 ## Natural Language Mapping
 
@@ -61,8 +69,10 @@ Use `action: "enable"` or `action: "disable"` with the `jobId`.
 | "every hour" | `everySeconds: 3600` |
 | "every 20 minutes" | `everySeconds: 1200` |
 | "every Sunday at noon" | `cronExpr: "0 12 * * 0"` |
-| "tomorrow at 3pm" | `at: "<tomorrow-ISO>"` |
-| "in 2 hours" | `at: "<now+2h-ISO>"` |
+| "tomorrow at 3pm" | `at: "2026-02-09T15:00:00"` |
+| "in 5 minutes" | `relativeMinutes: 5` |
+| "in 2 hours" | `relativeMinutes: 120` |
+| "in half an hour" | `relativeMinutes: 30` |
 | "first of every month" | `cronExpr: "0 9 1 * *"` |
 
 ## Cron Expression Format
@@ -79,15 +89,17 @@ Use `action: "enable"` or `action: "disable"` with the `jobId`.
 
 ## Timezone
 
-Add `timezone` when the user specifies a timezone:
+The user's timezone is automatically applied from their profile. You do NOT need to pass `timezone` explicitly unless the user requests a different timezone.
+
+If you do need to override:
 - `timezone: "America/New_York"`
 - `timezone: "Asia/Kolkata"`
 - `timezone: "Europe/London"`
 
-If no timezone is specified, the server's local timezone is used.
+## Rules
 
-## Tips
-
+- **Create ONLY what the user asks for.** If the user says "remind me in 5 minutes", create exactly ONE one-time reminder. Do NOT add extra recurring jobs, "helpful" follow-ups, or bonus reminders. One request = one job.
+- **Ask before adding anything extra.** If you think a recurring reminder would be useful, ASK the user first — never create it silently.
 - The `message` field is what the agent will process when the job fires. Write it as a task instruction (e.g., "Check the weather in Delhi and send me a summary") not just a label.
-- One-time jobs (`at`) are automatically deleted after they fire.
+- One-time jobs (`at`, `relativeMinutes`) are automatically deleted after they fire.
 - Use `list` to show the user their active jobs before adding duplicates.

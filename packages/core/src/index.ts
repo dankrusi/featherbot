@@ -98,6 +98,7 @@ export {
 	ContextBuilder,
 	createAgentLoop,
 	InMemoryHistory,
+	parseTimezoneFromUserMd,
 	SubagentManager,
 } from "./agent/index.js";
 export type {

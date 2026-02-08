@@ -21,21 +21,40 @@ export class CronTool implements Tool {
 			.optional()
 			.describe("Interval in seconds for recurring jobs"),
 		cronExpr: z.string().optional().describe("Standard 5-field cron expression (e.g. '0 9 * * *')"),
-		timezone: z.string().optional().describe("Timezone for cron expressions"),
-		at: z.string().optional().describe("ISO 8601 timestamp for one-time jobs"),
+		timezone: z
+			.string()
+			.optional()
+			.describe(
+				"IANA timezone (e.g. 'Asia/Kolkata'). Auto-applied from user profile if not specified.",
+			),
+		at: z
+			.string()
+			.optional()
+			.describe(
+				"ISO 8601 date-time for a one-time job. Bare timestamps (no Z/offset) are interpreted in the user's timezone.",
+			),
+		relativeMinutes: z
+			.number()
+			.positive()
+			.optional()
+			.describe(
+				"Minutes from now for a one-time reminder (e.g. 5). The system computes the exact time — do NOT calculate timestamps yourself.",
+			),
 	});
 
 	private readonly service: CronService;
 	private channel: string | undefined;
 	private chatId: string | undefined;
+	private timezone: string | undefined;
 
 	constructor(service: CronService) {
 		this.service = service;
 	}
 
-	setContext(channel: string, chatId: string): void {
+	setContext(channel: string, chatId: string, timezone?: string): void {
 		this.channel = channel;
 		this.chatId = chatId;
+		this.timezone = timezone;
 	}
 
 	async execute(params: Record<string, unknown>): Promise<string> {
@@ -66,12 +85,14 @@ export class CronTool implements Tool {
 			return "Error: 'name' and 'message' are required for add action";
 		}
 
-		const scheduleCount = [p.everySeconds, p.cronExpr, p.at].filter((v) => v !== undefined).length;
+		const scheduleCount = [p.everySeconds, p.cronExpr, p.at, p.relativeMinutes].filter(
+			(v) => v !== undefined,
+		).length;
 		if (scheduleCount === 0) {
-			return "Error: Provide exactly one of 'everySeconds', 'cronExpr', or 'at'";
+			return "Error: Provide exactly one of 'everySeconds', 'cronExpr', 'at', or 'relativeMinutes'";
 		}
 		if (scheduleCount > 1) {
-			return "Error: Provide exactly one of 'everySeconds', 'cronExpr', or 'at'";
+			return "Error: Provide exactly one of 'everySeconds', 'cronExpr', 'at', or 'relativeMinutes'";
 		}
 
 		let schedule:
@@ -79,11 +100,19 @@ export class CronTool implements Tool {
 			| { kind: "every"; everySeconds: number }
 			| { kind: "at"; at: string };
 		if (p.cronExpr !== undefined) {
-			schedule = { kind: "cron", cronExpr: p.cronExpr, timezone: p.timezone };
+			const tz = p.timezone ?? this.timezone;
+			schedule = { kind: "cron", cronExpr: p.cronExpr, timezone: tz };
 		} else if (p.everySeconds !== undefined) {
 			schedule = { kind: "every", everySeconds: p.everySeconds };
+		} else if (p.relativeMinutes !== undefined) {
+			const target = new Date(Date.now() + p.relativeMinutes * 60_000);
+			schedule = { kind: "at", at: target.toISOString() };
 		} else {
-			schedule = { kind: "at", at: p.at as string };
+			let atValue = p.at as string;
+			if (this.timezone && !atValue.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(atValue)) {
+				atValue = this.localToUtc(atValue, this.timezone);
+			}
+			schedule = { kind: "at", at: atValue };
 		}
 
 		const now = new Date().toISOString();
@@ -113,7 +142,7 @@ export class CronTool implements Tool {
 		});
 
 		const job = this.service.getJob(id);
-		const nextRun = job?.state.nextRunAt ? new Date(job.state.nextRunAt).toISOString() : "N/A";
+		const nextRun = job?.state.nextRunAt ? this.formatTime(new Date(job.state.nextRunAt)) : "N/A";
 
 		return `Job created: "${p.name}" (ID: ${id})\nSchedule: ${this.formatSchedule(schedule)}\nNext run: ${nextRun}`;
 	}
@@ -126,8 +155,10 @@ export class CronTool implements Tool {
 
 		const lines: string[] = [];
 		for (const job of jobs) {
-			const nextRun = job.state.nextRunAt ? new Date(job.state.nextRunAt).toISOString() : "N/A";
-			const lastRun = job.state.lastRunAt ? new Date(job.state.lastRunAt).toISOString() : "never";
+			const nextRun = job.state.nextRunAt ? this.formatTime(new Date(job.state.nextRunAt)) : "N/A";
+			const lastRun = job.state.lastRunAt
+				? this.formatTime(new Date(job.state.lastRunAt))
+				: "never";
 			const status = job.enabled ? "enabled" : "disabled";
 			lines.push(
 				`- ${job.name} (ID: ${job.id})\n  Schedule: ${this.formatSchedule(job.schedule)} | Status: ${status}\n  Next run: ${nextRun} | Last run: ${lastRun}`,
@@ -170,9 +201,86 @@ export class CronTool implements Tool {
 			case "every":
 				return `every ${schedule.everySeconds}s`;
 			case "at":
-				return `once at ${schedule.at}`;
+				return `once at ${this.formatTime(new Date(schedule.at as string))}`;
 			default:
 				return "unknown";
 		}
+	}
+
+	private formatTime(date: Date): string {
+		if (this.timezone) {
+			return date.toLocaleString("en-US", {
+				timeZone: this.timezone,
+				weekday: "short",
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+				hour: "numeric",
+				minute: "2-digit",
+				timeZoneName: "short",
+			});
+		}
+		return date.toISOString();
+	}
+
+	private localToUtc(bare: string, timezone: string): string {
+		// bare is a datetime string like "2026-02-08T21:00:00" with no zone info.
+		// We want to interpret it as the user's local timezone.
+		// Parse the numeric parts manually to avoid JS engine's locale-dependent parsing.
+		const m = bare.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+		if (!m) {
+			return bare;
+		}
+		const yr = Number(m[1]);
+		const mo = Number(m[2]);
+		const dy = Number(m[3]);
+		const hr = Number(m[4]);
+		const mn = Number(m[5]);
+		const sc = Number(m[6]);
+		// Treat the bare values as UTC to get a reference epoch
+		const asUtcMs = Date.UTC(yr, mo - 1, dy, hr, mn, sc);
+		const asUtc = new Date(asUtcMs);
+		// Compute the timezone offset at this instant
+		const utcParts = this.dateParts(asUtc, "UTC");
+		const tzParts = this.dateParts(asUtc, timezone);
+		const utcMs = Date.UTC(
+			utcParts.y,
+			utcParts.m,
+			utcParts.d,
+			utcParts.h,
+			utcParts.min,
+			utcParts.s,
+		);
+		const tzMs = Date.UTC(tzParts.y, tzParts.m, tzParts.d, tzParts.h, tzParts.min, tzParts.s);
+		const offsetMs = tzMs - utcMs; // positive means timezone is ahead of UTC
+		// The user meant the bare time in their timezone, so subtract the offset
+		return new Date(asUtcMs - offsetMs).toISOString();
+	}
+
+	private dateParts(
+		date: Date,
+		timeZone: string,
+	): { y: number; m: number; d: number; h: number; min: number; s: number } {
+		const fmt = new Intl.DateTimeFormat("en-US", {
+			timeZone,
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			second: "2-digit",
+			hour12: false,
+		});
+		const parts = fmt.formatToParts(date);
+		const get = (type: string) =>
+			Number.parseInt(parts.find((p) => p.type === type)?.value ?? "0", 10);
+		return {
+			y: get("year"),
+			m: get("month") - 1,
+			d: get("day"),
+			h: get("hour") === 24 ? 0 : get("hour"),
+			min: get("minute"),
+			s: get("second"),
+		};
 	}
 }

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { MessageBus } from "@featherbot/bus";
@@ -22,6 +23,7 @@ import {
 	createSkillsLoader,
 	createToolRegistry,
 	loadConfig,
+	parseTimezoneFromUserMd,
 } from "@featherbot/core";
 import type { FeatherBotConfig, SpawnToolOriginContext } from "@featherbot/core";
 import { CronService, HeartbeatService, buildHeartbeatPrompt } from "@featherbot/scheduler";
@@ -91,6 +93,15 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 	toolRegistry.register(new SubagentStatusTool(subagentManager));
 
 	const workspace = resolveHome(config.agents.defaults.workspace);
+
+	let userTimezone: string | undefined;
+	try {
+		const userMd = readFileSync(join(workspace, "USER.md"), "utf-8");
+		userTimezone = parseTimezoneFromUserMd(userMd) ?? undefined;
+	} catch {
+		/* USER.md not found */
+	}
+
 	const memoryStore = createMemoryStore(workspace);
 	const skillsLoader = createSkillsLoader({ workspacePath: workspace });
 
@@ -164,7 +175,7 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 		originContext.channel = event.message.channel;
 		originContext.chatId = event.message.chatId;
 		if (cronTool) {
-			cronTool.setContext(event.message.channel, event.message.chatId);
+			cronTool.setContext(event.message.channel, event.message.chatId, userTimezone);
 		}
 	});
 

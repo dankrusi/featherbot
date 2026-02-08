@@ -5,7 +5,7 @@ import { platform } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { SkillsLoader } from "../skills/loader.js";
-import { ContextBuilder } from "./context-builder.js";
+import { ContextBuilder, parseTimezoneFromUserMd } from "./context-builder.js";
 import type {
 	ContextBuilderOptions,
 	ContextBuilderResult,
@@ -103,7 +103,42 @@ describe("ContextBuilder", () => {
 			expect(systemPrompt.startsWith("## Identity")).toBe(true);
 		});
 
-		it("timestamp is a valid ISO string", async () => {
+		it("includes Timezone and Timestamp (local) when USER.md has valid timezone", async () => {
+			const ws = await makeTempWorkspace();
+			await writeFile(
+				join(ws, "USER.md"),
+				"# User\n\n- Name: Alice\n- Timezone: Asia/Kolkata\n- Language: English",
+			);
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["USER.md"],
+			});
+			const { systemPrompt } = await builder.build();
+			expect(systemPrompt).toContain("Timestamp (UTC):");
+			expect(systemPrompt).toContain("Timestamp (local):");
+			expect(systemPrompt).toContain("Timezone: Asia/Kolkata");
+			expect(systemPrompt).not.toMatch(/^Timestamp: \d{4}/m);
+		});
+
+		it("uses plain Timestamp when USER.md has placeholder timezone", async () => {
+			const ws = await makeTempWorkspace();
+			await writeFile(
+				join(ws, "USER.md"),
+				"# User\n\n- Name: (your name here)\n- Timezone: (your timezone, e.g., Asia/Kolkata)",
+			);
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["USER.md"],
+			});
+			const { systemPrompt } = await builder.build();
+			expect(systemPrompt).toContain("Timestamp:");
+			expect(systemPrompt).not.toContain("Timestamp (UTC):");
+			expect(systemPrompt).not.toContain("Timestamp (local):");
+		});
+
+		it("timestamp is a valid ISO string when no timezone", async () => {
 			const before = new Date().toISOString();
 			const builder = new ContextBuilder(defaultOptions);
 			const { systemPrompt } = await builder.build();
@@ -589,6 +624,81 @@ describe("ContextBuilder", () => {
 			expect(memoryIdx).toBeGreaterThanOrEqual(0);
 			expect(skillsIdx).toBeGreaterThan(memoryIdx);
 			expect(sessionIdx).toBeGreaterThan(skillsIdx);
+		});
+	});
+
+	describe("userTimezone in result", () => {
+		it("sets userTimezone when USER.md has valid timezone", async () => {
+			const ws = await makeTempWorkspace();
+			await writeFile(
+				join(ws, "USER.md"),
+				"# User\n\n- Name: Alice\n- Timezone: America/New_York\n- Language: English",
+			);
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["USER.md"],
+			});
+			const result = await builder.build();
+			expect(result.userTimezone).toBe("America/New_York");
+		});
+
+		it("userTimezone is undefined when USER.md has placeholder", async () => {
+			const ws = await makeTempWorkspace();
+			await writeFile(
+				join(ws, "USER.md"),
+				"# User\n\n- Name: (your name here)\n- Timezone: (your timezone, e.g., Asia/Kolkata)",
+			);
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["USER.md"],
+			});
+			const result = await builder.build();
+			expect(result.userTimezone).toBeUndefined();
+		});
+
+		it("userTimezone is undefined when USER.md is missing", async () => {
+			const ws = await makeTempWorkspace();
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["USER.md"],
+			});
+			const result = await builder.build();
+			expect(result.userTimezone).toBeUndefined();
+		});
+	});
+
+	describe("parseTimezoneFromUserMd", () => {
+		it("returns timezone for valid IANA timezone", () => {
+			const content = "- Name: Alice\n- Timezone: Asia/Kolkata\n- Language: English";
+			expect(parseTimezoneFromUserMd(content)).toBe("Asia/Kolkata");
+		});
+
+		it("returns null for placeholder timezone", () => {
+			const content = "- Timezone: (your timezone, e.g., Asia/Kolkata)";
+			expect(parseTimezoneFromUserMd(content)).toBeNull();
+		});
+
+		it("returns null for invalid timezone", () => {
+			const content = "- Timezone: Not/A/Real/Zone";
+			expect(parseTimezoneFromUserMd(content)).toBeNull();
+		});
+
+		it("returns null when no timezone line exists", () => {
+			const content = "- Name: Alice\n- Language: English";
+			expect(parseTimezoneFromUserMd(content)).toBeNull();
+		});
+
+		it("handles America/New_York", () => {
+			const content = "- Timezone: America/New_York";
+			expect(parseTimezoneFromUserMd(content)).toBe("America/New_York");
+		});
+
+		it("handles Europe/London", () => {
+			const content = "- Timezone: Europe/London";
+			expect(parseTimezoneFromUserMd(content)).toBe("Europe/London");
 		});
 	});
 });

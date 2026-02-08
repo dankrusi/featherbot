@@ -35,7 +35,7 @@ Example: `list_dir({ path: "." })`
 Manage scheduled tasks. The `action` parameter determines the operation.
 
 **Actions:**
-- `add` — Create a new scheduled job. Requires: `name`, `message`, and exactly one of `cronExpr`, `everySeconds`, or `at`.
+- `add` — Create a new scheduled job. Requires: `name`, `message`, and exactly one of `cronExpr`, `everySeconds`, `at`, or `relativeMinutes`.
 - `list` — List all existing scheduled jobs.
 - `remove` — Remove a job by ID. Requires: `jobId`.
 - `enable` / `disable` — Toggle a job. Requires: `jobId`.
@@ -48,8 +48,11 @@ Create a daily job at 9 AM:
 Create a recurring job every 5 minutes:
   `cron({ action: "add", name: "Health check", message: "Check system health", everySeconds: 300 })`
 
-Create a one-time reminder:
-  `cron({ action: "add", name: "Meeting reminder", message: "Team meeting in 15 minutes", at: "2026-02-10T14:45:00Z" })`
+Create a one-time reminder at a specific time:
+  `cron({ action: "add", name: "Meeting reminder", message: "Team meeting in 15 minutes", at: "2026-02-10T14:45:00" })`
+
+Create a reminder in 30 minutes:
+  `cron({ action: "add", name: "Quick reminder", message: "Check the build", relativeMinutes: 30 })`
 
 List all jobs: `cron({ action: "list" })`
 Remove a job: `cron({ action: "remove", jobId: "the-job-id" })`

@@ -220,4 +220,165 @@ describe("CronTool", () => {
 			expect(job?.payload.chatId).toBeUndefined();
 		});
 	});
+
+	describe("relativeMinutes", () => {
+		it("creates an at job ~5 minutes in the future", async () => {
+			const result = await tool.execute({
+				action: "add",
+				name: "Quick reminder",
+				message: "Drink water",
+				relativeMinutes: 5,
+			});
+			expect(result).toContain("Job created");
+			const job = service.listJobs()[0];
+			expect(job?.schedule.kind).toBe("at");
+			if (job?.schedule.kind === "at") {
+				const scheduledAt = new Date(job.schedule.at).getTime();
+				const expected = new Date("2026-02-08T10:05:00Z").getTime();
+				expect(Math.abs(scheduledAt - expected)).toBeLessThan(1000);
+			}
+			expect(job?.deleteAfterRun).toBe(true);
+		});
+
+		it("rejects when combined with other schedule types", async () => {
+			const result = await tool.execute({
+				action: "add",
+				name: "Bad combo",
+				message: "test",
+				relativeMinutes: 5,
+				cronExpr: "0 9 * * *",
+			});
+			expect(result).toContain("Error");
+			expect(result).toContain("exactly one");
+		});
+
+		it("rejects when combined with at", async () => {
+			const result = await tool.execute({
+				action: "add",
+				name: "Bad combo",
+				message: "test",
+				relativeMinutes: 5,
+				at: "2026-02-09T15:00:00Z",
+			});
+			expect(result).toContain("Error");
+			expect(result).toContain("exactly one");
+		});
+	});
+
+	describe("timezone-aware formatting", () => {
+		it("formats output times in local timezone when timezone is set", async () => {
+			tool.setContext("telegram", "12345", "Asia/Kolkata");
+			const result = await tool.execute({
+				action: "add",
+				name: "TZ test",
+				message: "test",
+				at: "2026-02-08T15:00:00Z",
+			});
+			expect(result).toContain("Job created");
+			expect(result).not.toContain("2026-02-08T15:00:00.000Z");
+			// Node uses "GMT+5:30" for Asia/Kolkata
+			expect(result).toMatch(/GMT\+5:30|IST/);
+		});
+
+		it("formats list output in local timezone", async () => {
+			tool.setContext("telegram", "12345", "Asia/Kolkata");
+			await tool.execute({
+				action: "add",
+				name: "TZ list",
+				message: "test",
+				cronExpr: "0 9 * * *",
+			});
+			const result = await tool.execute({ action: "list" });
+			expect(result).toContain("TZ list");
+			expect(result).toMatch(/GMT\+5:30|IST/);
+		});
+
+		it("auto-applies timezone to cron expressions", async () => {
+			tool.setContext("telegram", "12345", "Asia/Kolkata");
+			await tool.execute({
+				action: "add",
+				name: "Auto TZ cron",
+				message: "test",
+				cronExpr: "0 9 * * *",
+			});
+			const job = service.listJobs()[0];
+			expect(job?.schedule.kind).toBe("cron");
+			if (job?.schedule.kind === "cron") {
+				expect(job.schedule.timezone).toBe("Asia/Kolkata");
+			}
+		});
+
+		it("explicit timezone overrides auto-applied timezone", async () => {
+			tool.setContext("telegram", "12345", "Asia/Kolkata");
+			await tool.execute({
+				action: "add",
+				name: "Override TZ",
+				message: "test",
+				cronExpr: "0 9 * * *",
+				timezone: "America/New_York",
+			});
+			const job = service.listJobs()[0];
+			if (job?.schedule.kind === "cron") {
+				expect(job.schedule.timezone).toBe("America/New_York");
+			}
+		});
+
+		it("falls back to ISO when no timezone is set", async () => {
+			const result = await tool.execute({
+				action: "add",
+				name: "No TZ",
+				message: "test",
+				at: "2026-02-08T15:00:00Z",
+			});
+			expect(result).toContain("2026-02-08T15:00:00");
+		});
+	});
+
+	describe("bare at timestamp handling", () => {
+		it("interprets bare at timestamp in user timezone", async () => {
+			tool.setContext("telegram", "12345", "Asia/Kolkata");
+			await tool.execute({
+				action: "add",
+				name: "Bare at",
+				message: "test",
+				at: "2026-02-08T21:00:00",
+			});
+			const job = service.listJobs()[0];
+			expect(job?.schedule.kind).toBe("at");
+			if (job?.schedule.kind === "at") {
+				// 21:00 IST = 15:30 UTC (IST is UTC+5:30)
+				const d = new Date(job.schedule.at);
+				expect(d.getUTCHours()).toBe(15);
+				expect(d.getUTCMinutes()).toBe(30);
+			}
+		});
+
+		it("does not modify at timestamp with Z suffix", async () => {
+			tool.setContext("telegram", "12345", "Asia/Kolkata");
+			await tool.execute({
+				action: "add",
+				name: "UTC at",
+				message: "test",
+				at: "2026-02-08T15:00:00Z",
+			});
+			const job = service.listJobs()[0];
+			if (job?.schedule.kind === "at") {
+				expect(job.schedule.at).toBe("2026-02-08T15:00:00Z");
+			}
+		});
+
+		it("does not modify at timestamp with offset", async () => {
+			tool.setContext("telegram", "12345", "Asia/Kolkata");
+			await tool.execute({
+				action: "add",
+				name: "Offset at",
+				message: "test",
+				at: "2026-02-08T15:00:00+05:30",
+			});
+			const job = service.listJobs()[0];
+			if (job?.schedule.kind === "at") {
+				expect(job.schedule.at).toBe("2026-02-08T15:00:00+05:30");
+			}
+		});
+	});
 });

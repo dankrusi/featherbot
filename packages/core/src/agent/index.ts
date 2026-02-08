@@ -33,7 +33,7 @@ export function createAgentLoop(
 	});
 }
 
-export { ContextBuilder } from "./context-builder.js";
+export { ContextBuilder, parseTimezoneFromUserMd } from "./context-builder.js";
 export type {
 	ContextBuilderOptions,
 	ContextBuilderResult,

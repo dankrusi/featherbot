@@ -20,6 +20,7 @@ export interface ContextBuilderOptions {
 export interface ContextBuilderResult {
 	systemPrompt: string;
 	isFirstConversation: boolean;
+	userTimezone?: string;
 }
 
 export class ContextBuilder {
@@ -39,9 +40,11 @@ export class ContextBuilder {
 
 	async build(sessionContext?: SessionContext): Promise<ContextBuilderResult> {
 		const sections: string[] = [];
-		sections.push(this.buildIdentityBlock());
 
 		const { sections: bootstrapSections, contentMap } = await this.loadBootstrapFiles();
+		const userTimezone = extractTimezone(contentMap);
+		sections.push(this.buildIdentityBlock(userTimezone ?? undefined));
+
 		for (const section of bootstrapSections) {
 			sections.push(section);
 		}
@@ -67,18 +70,37 @@ export class ContextBuilder {
 			sections.push(sessionSection);
 		}
 
-		return { systemPrompt: sections.join("\n\n"), isFirstConversation: firstConversation };
+		return {
+			systemPrompt: sections.join("\n\n"),
+			isFirstConversation: firstConversation,
+			userTimezone: userTimezone ?? undefined,
+		};
 	}
 
-	private buildIdentityBlock(): string {
-		const lines = [
-			"## Identity",
-			`Name: ${this.agentName}`,
-			`Timestamp: ${new Date().toISOString()}`,
-			`Node.js: ${process.version}`,
-			`Platform: ${platform()}`,
-			`Workspace: ${this.workspacePath}`,
-		];
+	private buildIdentityBlock(timezone?: string): string {
+		const now = new Date();
+		const lines = ["## Identity", `Name: ${this.agentName}`];
+		if (timezone) {
+			lines.push(`Timestamp (UTC): ${now.toISOString()}`);
+			const localStr = now.toLocaleString("en-US", {
+				timeZone: timezone,
+				weekday: "short",
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+				hour: "numeric",
+				minute: "2-digit",
+				second: "2-digit",
+				timeZoneName: "short",
+			});
+			lines.push(`Timestamp (local): ${localStr}`);
+			lines.push(`Timezone: ${timezone}`);
+		} else {
+			lines.push(`Timestamp: ${now.toISOString()}`);
+		}
+		lines.push(`Node.js: ${process.version}`);
+		lines.push(`Platform: ${platform()}`);
+		lines.push(`Workspace: ${this.workspacePath}`);
 		return lines.join("\n");
 	}
 
@@ -229,4 +251,33 @@ export class ContextBuilder {
 			throw err;
 		}
 	}
+}
+
+/**
+ * Parse timezone from USER.md content. Returns IANA timezone string or null
+ * if not found, placeholder, or invalid.
+ */
+export function parseTimezoneFromUserMd(content: string): string | null {
+	const match = content.match(/^- Timezone:\s*(.+)$/m);
+	if (!match?.[1]) {
+		return null;
+	}
+	const raw = match[1].trim();
+	if (!raw || raw.includes("(") || raw.includes("your timezone")) {
+		return null;
+	}
+	try {
+		Intl.DateTimeFormat(undefined, { timeZone: raw });
+		return raw;
+	} catch {
+		return null;
+	}
+}
+
+function extractTimezone(contentMap: Map<string, string>): string | null {
+	const userContent = contentMap.get("USER.md");
+	if (!userContent) {
+		return null;
+	}
+	return parseTimezoneFromUserMd(userContent);
 }
