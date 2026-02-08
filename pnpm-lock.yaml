@@ -54,6 +54,9 @@ importers:
       '@featherbot/core':
         specifier: workspace:*
         version: link:../core
+      '@featherbot/scheduler':
+        specifier: workspace:*
+        version: link:../scheduler
       commander:
         specifier: ^13.1.0
         version: 13.1.0
