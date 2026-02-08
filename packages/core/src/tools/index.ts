@@ -28,6 +28,8 @@ export function createToolRegistry(config: FeatherBotConfig): ToolRegistry {
 }
 
 export { CronTool } from "./cron-tool.js";
+export { SpawnTool, SubagentStatusTool } from "./spawn-tool.js";
+export type { SpawnToolOriginContext } from "./spawn-tool.js";
 export { EditFileTool } from "./edit-file-tool.js";
 export type { EditFileToolOptions } from "./edit-file-tool.js";
 export { ExecTool } from "./exec-tool.js";

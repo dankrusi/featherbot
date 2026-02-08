@@ -12,6 +12,7 @@ export {
 	ProviderConfigSchema,
 	ProviderEntrySchema,
 	SessionConfigSchema,
+	SubagentConfigSchema,
 	TelegramChannelConfigSchema,
 	ToolConfigSchema,
 	WebSearchToolConfigSchema,
@@ -25,6 +26,7 @@ export type {
 	HeartbeatConfig,
 	ProviderConfig,
 	SessionConfig,
+	SubagentConfig,
 	ToolConfig,
 	WhatsAppConfig,
 } from "./config/schema.js";
@@ -67,6 +69,8 @@ export {
 	ExecTool,
 	ListDirTool,
 	ReadFileTool,
+	SpawnTool,
+	SubagentStatusTool,
 	ToolRegistry,
 	WriteFileTool,
 } from "./tools/index.js";
@@ -77,6 +81,7 @@ export type {
 	ListDirToolOptions,
 	PathValidationResult,
 	ReadFileToolOptions,
+	SpawnToolOriginContext,
 	Tool,
 	ToolExecutionResult,
 	ToolRegistryDefinition,
@@ -88,6 +93,7 @@ export {
 	ContextBuilder,
 	createAgentLoop,
 	InMemoryHistory,
+	SubagentManager,
 } from "./agent/index.js";
 export type {
 	AgentLoopOptions,
@@ -96,8 +102,11 @@ export type {
 	ContextBuilderResult,
 	ConversationHistory,
 	SessionContext,
+	SpawnOptions,
 	StepCallback,
 	StepEvent,
+	SubagentState,
+	SubagentStatus,
 } from "./agent/index.js";
 export { createMemoryStore, FileMemoryStore } from "./memory/index.js";
 export type { MemoryStore } from "./memory/index.js";

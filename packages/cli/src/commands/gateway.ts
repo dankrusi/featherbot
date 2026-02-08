@@ -10,11 +10,16 @@ import {
 } from "@featherbot/channels";
 import {
 	CronTool,
+	SpawnTool,
+	SubagentManager,
+	SubagentStatusTool,
 	createAgentLoop,
 	createOutboundMessage,
+	createProvider,
 	createToolRegistry,
 	loadConfig,
 } from "@featherbot/core";
+import type { SpawnToolOriginContext } from "@featherbot/core";
 import { CronService, HeartbeatService, buildHeartbeatPrompt } from "@featherbot/scheduler";
 import type { Command } from "commander";
 
@@ -56,6 +61,34 @@ export async function runGateway(): Promise<void> {
 		cronTool = new CronTool(cronService);
 		toolRegistry.register(cronTool);
 	}
+
+	const originContext: SpawnToolOriginContext = { channel: "", chatId: "" };
+	const provider = createProvider(config);
+	const subagentManager = new SubagentManager(provider, config, async (state) => {
+		const content =
+			state.status === "completed"
+				? `Background task completed:\nTask: ${state.task}\nResult: ${state.result}`
+				: `Background task failed:\nTask: ${state.task}\nError: ${state.error}`;
+		const outbound = createOutboundMessage({
+			channel: state.originChannel,
+			chatId: state.originChatId,
+			content,
+			replyTo: null,
+			media: [],
+			metadata: {},
+			inReplyToMessageId: null,
+		});
+		await bus.publish({
+			type: "message:outbound",
+			message: outbound,
+			timestamp: new Date(),
+		});
+	});
+
+	const spawnTool = new SpawnTool(subagentManager, originContext);
+	const subagentStatusTool = new SubagentStatusTool(subagentManager);
+	toolRegistry.register(spawnTool);
+	toolRegistry.register(subagentStatusTool);
 
 	const agentLoop = createAgentLoop(config, { toolRegistry });
 
@@ -106,6 +139,11 @@ export async function runGateway(): Promise<void> {
 		channelManager.register(whatsapp);
 	}
 
+	bus.subscribe("message:inbound", (event) => {
+		originContext.channel = event.message.channel;
+		originContext.chatId = event.message.chatId;
+	});
+
 	adapter.start();
 	await channelManager.startAll();
 
@@ -133,6 +171,7 @@ export async function runGateway(): Promise<void> {
 		const minutes = Math.round(config.heartbeat.intervalMs / 60000);
 		console.log(`Heartbeat: enabled (every ${minutes}m)`);
 	}
+	console.log("Sub-agents: enabled");
 	console.log("");
 
 	let shuttingDown = false;

@@ -49,3 +49,9 @@ export type {
 	StepCallback,
 	StepEvent,
 } from "./types.js";
+export { SubagentManager } from "./subagent.js";
+export type {
+	SpawnOptions,
+	SubagentState,
+	SubagentStatus,
+} from "./subagent-types.js";

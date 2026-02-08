@@ -1,0 +1,139 @@
+{
+	"project": "featherbot",
+	"milestone": "M17 - Sub-agents",
+	"branchName": "feat/m17-subagents",
+	"description": "Async background sub-agents with spawn tool, state tracking, reduced tool set, timeout limits, and result routing to originating channel",
+	"userStories": [
+		{
+			"id": "US-001",
+			"title": "Sub-agent Types & Config Schema",
+			"description": "As a developer building FeatherBot, I want TypeScript types for sub-agent state and a config schema for sub-agent settings so that all sub-agent code has a strong type foundation",
+			"acceptanceCriteria": [
+				"Create packages/core/src/agent/subagent-types.ts with SubagentStatus union type (running | completed | failed), SubagentState interface (id, task, status, result?, error?, startedAt, completedAt?, originChannel, originChatId), SpawnOptions interface (task, originChannel, originChatId)",
+				"Add SubagentConfigSchema to packages/core/src/config/schema.ts with defaults: maxIterations 15, timeoutMs 300000",
+				"Add subagent field to FeatherBotConfigSchema",
+				"Export new types from packages/core/src/index.ts",
+				"Typecheck passes (pnpm typecheck)",
+				"Lint passes (pnpm lint)"
+			],
+			"priority": 1,
+			"passes": true,
+			"notes": ""
+		},
+		{
+			"id": "US-002",
+			"title": "SubagentManager Core Implementation",
+			"description": "As a developer building FeatherBot, I want a SubagentManager class that spawns and tracks background agent tasks so that the main agent can delegate work to sub-agents",
+			"acceptanceCriteria": [
+				"Create packages/core/src/agent/subagent.ts with SubagentManager class",
+				"Constructor accepts provider (LLMProvider), config (FeatherBotConfig), onComplete callback (state: SubagentState) => void | Promise<void>",
+				"spawn(options: SpawnOptions): string — generates UUID task ID, creates reduced ToolRegistry (exec, read_file, write_file, edit_file, list_dir only), fires async AgentLoop.processDirect with sub-agent system prompt, wraps in Promise.race with timeout",
+				"On completion: updates state to completed, calls onComplete callback",
+				"On error/timeout: updates state to failed, stores error message, calls onComplete",
+				"getState(id): SubagentState | undefined, listActive(): SubagentState[], listAll(): SubagentState[]",
+				"Sub-agent AgentLoop uses maxToolIterations from config.subagent.maxIterations (default 15)",
+				"Sub-agent uses fresh session with key subagent:{id}",
+				"Export SubagentManager from packages/core/src/index.ts",
+				"Typecheck passes (pnpm typecheck)",
+				"Lint passes (pnpm lint)"
+			],
+			"priority": 2,
+			"passes": true,
+			"notes": ""
+		},
+		{
+			"id": "US-003",
+			"title": "SubagentManager Tests",
+			"description": "As a developer building FeatherBot, I want comprehensive tests for the SubagentManager so that sub-agent lifecycle (spawn, completion, failure, timeout) is verified",
+			"acceptanceCriteria": [
+				"Create packages/core/src/agent/subagent.test.ts",
+				"Test: spawn returns a string task ID",
+				"Test: spawned sub-agent state is running immediately after spawn",
+				"Test: sub-agent state transitions to completed when LLM finishes",
+				"Test: onComplete callback is invoked with completed state",
+				"Test: sub-agent state transitions to failed when LLM errors",
+				"Test: sub-agent times out after timeoutMs and state becomes failed with timeout error",
+				"Test: listActive returns only running sub-agents",
+				"Test: listAll returns all sub-agents regardless of status",
+				"Test: getState returns undefined for unknown ID",
+				"Test: sub-agent tool registry does NOT include message, spawn, or cron tools",
+				"Mock LLM provider for all tests (no real API calls)",
+				"Tests pass (pnpm test)"
+			],
+			"priority": 3,
+			"passes": true,
+			"notes": ""
+		},
+		{
+			"id": "US-004",
+			"title": "SpawnTool Implementation",
+			"description": "As a developer building FeatherBot, I want a spawn tool that the LLM can call to create sub-agents so that the main agent can delegate background tasks via tool calling",
+			"acceptanceCriteria": [
+				"Create packages/core/src/tools/spawn-tool.ts implementing Tool interface",
+				"SpawnTool: name spawn, Zod params { task: z.string() }, constructor accepts SubagentManager and mutable originContext { channel, chatId }",
+				"SpawnTool.execute calls SubagentManager.spawn with origin context, returns success message with task ID",
+				"SubagentStatusTool in same file: name subagent_status, params { id: z.string().optional() }",
+				"SubagentStatusTool.execute returns status summary for specific ID or lists all active sub-agents",
+				"Export both tools from packages/core/src/tools/index.ts",
+				"Typecheck passes (pnpm typecheck)",
+				"Lint passes (pnpm lint)"
+			],
+			"priority": 4,
+			"passes": true,
+			"notes": ""
+		},
+		{
+			"id": "US-005",
+			"title": "SpawnTool Tests",
+			"description": "As a developer building FeatherBot, I want tests for the SpawnTool and SubagentStatusTool so that tool execution, parameter validation, and status reporting are verified",
+			"acceptanceCriteria": [
+				"Create packages/core/src/tools/spawn-tool.test.ts",
+				"Test: SpawnTool.execute with valid task returns success message containing task ID",
+				"Test: SpawnTool.execute passes origin context (channel, chatId) to SubagentManager",
+				"Test: SpawnTool parameters schema validates task as required string",
+				"Test: SubagentStatusTool.execute with specific ID returns that sub-agent's status",
+				"Test: SubagentStatusTool.execute without ID returns list of active sub-agents",
+				"Test: SubagentStatusTool returns No active sub-agents when none running",
+				"Mock SubagentManager for all tests",
+				"Tests pass (pnpm test)"
+			],
+			"priority": 5,
+			"passes": true,
+			"notes": ""
+		},
+		{
+			"id": "US-006",
+			"title": "Gateway Integration",
+			"description": "As a developer deploying FeatherBot, I want the SubagentManager and SpawnTool wired into the gateway startup so that sub-agents work end-to-end when the gateway is running",
+			"acceptanceCriteria": [
+				"Update packages/cli/src/commands/gateway.ts: create SubagentManager with provider and config, create SpawnTool and SubagentStatusTool, register both on toolRegistry before createAgentLoop",
+				"SubagentManager creates its own internal AgentLoop instances (does not reuse main one)",
+				"SpawnTool receives mutable originContext object, updated before each processMessage in bus adapter flow",
+				"onComplete callback publishes OutboundMessage to bus with originating channel and chatId",
+				"Typecheck passes (pnpm typecheck)",
+				"Lint passes (pnpm lint)"
+			],
+			"priority": 6,
+			"passes": true,
+			"notes": ""
+		},
+		{
+			"id": "US-007",
+			"title": "Sub-agent Result Routing & Integration Test",
+			"description": "As a developer building FeatherBot, I want sub-agent results delivered to the user on the originating channel and integration tests verifying the full flow so that background task results reach the user automatically",
+			"acceptanceCriteria": [
+				"On sub-agent completion: formats result message (Background task completed: Task: {task}, Result: {result}), publishes OutboundMessage to bus with originating channel + chatId",
+				"On sub-agent failure/timeout: formats error message (Background task failed: Task: {task}, Error: {error}), publishes to bus",
+				"Create packages/core/src/agent/subagent-integration.test.ts",
+				"Test: spawn -> sub-agent runs -> completes -> result delivered to bus",
+				"Test: spawn -> sub-agent errors -> failure message delivered to bus",
+				"Test: spawn -> sub-agent times out -> timeout message delivered to bus",
+				"Use mock LLM provider and mock bus",
+				"Tests pass (pnpm test)"
+			],
+			"priority": 7,
+			"passes": true,
+			"notes": ""
+		}
+	]
+}

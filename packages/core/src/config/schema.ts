@@ -81,6 +81,11 @@ export const HeartbeatConfigSchema = z.object({
 	heartbeatFile: z.string().default("HEARTBEAT.md"),
 });
 
+export const SubagentConfigSchema = z.object({
+	maxIterations: z.number().int().positive().default(15),
+	timeoutMs: z.number().int().positive().default(300000),
+});
+
 export const FeatherBotConfigSchema = z.object({
 	agents: z.object({ defaults: AgentConfigSchema.default({}) }).default({}),
 	channels: ChannelConfigSchema.default({}),
@@ -89,6 +94,7 @@ export const FeatherBotConfigSchema = z.object({
 	session: SessionConfigSchema.default({}),
 	cron: CronConfigSchema.default({}),
 	heartbeat: HeartbeatConfigSchema.default({}),
+	subagent: SubagentConfigSchema.default({}),
 });
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
@@ -99,4 +105,5 @@ export type SessionConfig = z.infer<typeof SessionConfigSchema>;
 export type ToolConfig = z.infer<typeof ToolConfigSchema>;
 export type CronConfig = z.infer<typeof CronConfigSchema>;
 export type HeartbeatConfig = z.infer<typeof HeartbeatConfigSchema>;
+export type SubagentConfig = z.infer<typeof SubagentConfigSchema>;
 export type FeatherBotConfig = z.infer<typeof FeatherBotConfigSchema>;
