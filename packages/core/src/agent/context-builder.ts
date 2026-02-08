@@ -40,9 +40,13 @@ export class ContextBuilder {
 		const sections: string[] = [];
 		sections.push(this.buildIdentityBlock());
 
-		const bootstrapSections = await this.loadBootstrapFiles();
+		const { sections: bootstrapSections, contentMap } = await this.loadBootstrapFiles();
 		for (const section of bootstrapSections) {
 			sections.push(section);
+		}
+
+		if (this.isFirstConversation(contentMap)) {
+			sections.push(this.buildFirstConversationSection());
 		}
 
 		const memorySection = await this.buildMemorySection();
@@ -135,16 +139,50 @@ export class ContextBuilder {
 		return `## Session\n${lines.join("\n")}`;
 	}
 
-	private async loadBootstrapFiles(): Promise<string[]> {
+	private isFirstConversation(bootstrapContent: Map<string, string>): boolean {
+		const userContent = bootstrapContent.get("USER.md");
+		if (!userContent) {
+			return false;
+		}
+		return userContent.includes("(your name here)");
+	}
+
+	private buildFirstConversationSection(): string {
+		const lines = [
+			"## First Conversation",
+			"This is the user's first conversation — USER.md still has placeholder values.",
+			"",
+			"Your goals for this conversation:",
+			"1. Warmly introduce yourself by name and explain briefly what you can do.",
+			"2. Naturally ask the user's name, where they're from, and their timezone.",
+			"3. Ask what they're interested in or how they plan to use you.",
+			"4. Keep it conversational — ask only 1-2 questions at a time, don't interrogate.",
+			"5. Once you've gathered their info, use the edit_file tool to update USER.md:",
+			"   - Replace `(your name here)` with their actual name",
+			"   - Replace `(your timezone, e.g., Asia/Kolkata)` with their timezone",
+			"   - Replace `(add your interests)` with their interests",
+			"   - Fill in the Notes section with any other facts they share",
+			"6. Also use edit_file to update memory/MEMORY.md — add a ## Facts section with key user facts.",
+			"7. After updating the files, transition naturally into being helpful with whatever they need.",
+		];
+		return lines.join("\n");
+	}
+
+	private async loadBootstrapFiles(): Promise<{
+		sections: string[];
+		contentMap: Map<string, string>;
+	}> {
 		const sections: string[] = [];
+		const contentMap = new Map<string, string>();
 		for (const filename of this.bootstrapFiles) {
 			const filePath = join(this.workspacePath, filename);
 			const content = (await this.readFileSafe(filePath)).trim();
 			if (content) {
 				sections.push(`## ${filename}\n${content}`);
+				contentMap.set(filename, content);
 			}
 		}
-		return sections;
+		return { sections, contentMap };
 	}
 
 	private async readFileSafe(filePath: string): Promise<string> {

@@ -354,6 +354,89 @@ describe("ContextBuilder", () => {
 		});
 	});
 
+	describe("first conversation detection", () => {
+		it("injects first-conversation section when USER.md has placeholder text", async () => {
+			const ws = await makeTempWorkspace();
+			await writeFile(
+				join(ws, "USER.md"),
+				"# User Profile\n\n- Name: (your name here)\n- Timezone: (your timezone)",
+			);
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["USER.md"],
+			});
+			const { systemPrompt } = await builder.build();
+			expect(systemPrompt).toContain("## First Conversation");
+			expect(systemPrompt).toContain("introduce yourself");
+			expect(systemPrompt).toContain("edit_file");
+		});
+
+		it("does NOT inject when USER.md has real user data", async () => {
+			const ws = await makeTempWorkspace();
+			await writeFile(
+				join(ws, "USER.md"),
+				"# User Profile\n\n- Name: Alice\n- Timezone: America/New_York",
+			);
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["USER.md"],
+			});
+			const { systemPrompt } = await builder.build();
+			expect(systemPrompt).not.toContain("## First Conversation");
+		});
+
+		it("does NOT inject when USER.md is missing", async () => {
+			const ws = await makeTempWorkspace();
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["USER.md"],
+			});
+			const { systemPrompt } = await builder.build();
+			expect(systemPrompt).not.toContain("## First Conversation");
+		});
+
+		it("first-conversation section appears after bootstrap files and before memory", async () => {
+			const ws = await makeTempWorkspace();
+			await writeFile(join(ws, "USER.md"), "# User Profile\n\n- Name: (your name here)");
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["USER.md"],
+				memoryStore: {
+					getMemoryContext: async () => "Some memory",
+					getRecentMemories: async () => "",
+					getMemoryFilePath: () => "",
+					getDailyNotePath: () => "",
+				},
+			});
+			const { systemPrompt } = await builder.build();
+			const bootstrapIdx = systemPrompt.indexOf("## USER.md");
+			const firstConvoIdx = systemPrompt.indexOf("## First Conversation");
+			const memoryIdx = systemPrompt.indexOf("## Memory");
+			expect(bootstrapIdx).toBeGreaterThanOrEqual(0);
+			expect(firstConvoIdx).toBeGreaterThan(bootstrapIdx);
+			expect(memoryIdx).toBeGreaterThan(firstConvoIdx);
+		});
+
+		it("contains key instruction phrases", async () => {
+			const ws = await makeTempWorkspace();
+			await writeFile(join(ws, "USER.md"), "# User Profile\n\n- Name: (your name here)");
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["USER.md"],
+			});
+			const { systemPrompt } = await builder.build();
+			expect(systemPrompt).toContain("introduce yourself");
+			expect(systemPrompt).toContain("edit_file");
+			expect(systemPrompt).toContain("USER.md");
+			expect(systemPrompt).toContain("MEMORY.md");
+		});
+	});
+
 	describe("skills integration", () => {
 		function makeSkillDir(name: string, frontmatter: string, body: string): string {
 			const dir = mkdtempSync(join(tmpdir(), "skills-ctx-"));
