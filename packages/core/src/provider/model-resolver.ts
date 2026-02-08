@@ -1,11 +1,10 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { LanguageModel } from "ai";
 import type { ProviderConfig } from "../config/schema.js";
 
 type ProviderName = "anthropic" | "openai" | "openrouter";
-
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 const OPENAI_KEYWORDS = /^(gpt|o1|o3|o4)/i;
 const ANTHROPIC_KEYWORDS = /claude/i;
@@ -64,12 +63,8 @@ export function resolveModel(modelString: string, providerConfig: ProviderConfig
 			return provider(modelId) as LanguageModel;
 		}
 		case "openrouter": {
-			const provider = createOpenAI({
-				apiKey,
-				baseURL: OPENROUTER_BASE_URL,
-				name: "openrouter",
-			});
-			return provider(modelId) as LanguageModel;
+			const provider = createOpenRouter({ apiKey });
+			return provider.chat(modelId) as LanguageModel;
 		}
 	}
 }

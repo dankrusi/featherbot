@@ -1,4 +1,10 @@
+const TELEGRAM_MAX_LENGTH = 4096;
 const SPECIAL_CHARS = /[_*[\]()~`>#\+\-=|{}.!]/g;
+
+export function truncateForTelegram(text: string): string {
+	if (text.length <= TELEGRAM_MAX_LENGTH) return text;
+	return `${text.slice(0, TELEGRAM_MAX_LENGTH - 14)}\n\n[truncated]`;
+}
 
 /**
  * Escapes text for Telegram MarkdownV2 while preserving code blocks and inline code.

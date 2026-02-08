@@ -1,5 +1,6 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { describe, expect, it, vi } from "vitest";
 import type { ProviderConfig } from "../config/schema.js";
 import { parseModelString, resolveModel } from "./model-resolver.js";
@@ -20,8 +21,17 @@ vi.mock("@ai-sdk/openai", () => {
 	};
 });
 
+vi.mock("@openrouter/ai-sdk-provider", () => {
+	const mockModel = { modelId: "mock-openrouter", provider: "openrouter" };
+	const mockChat = vi.fn(() => mockModel);
+	return {
+		createOpenRouter: vi.fn(() => ({ chat: mockChat })),
+	};
+});
+
 const mockedCreateAnthropic = vi.mocked(createAnthropic);
 const mockedCreateOpenAI = vi.mocked(createOpenAI);
+const mockedCreateOpenRouter = vi.mocked(createOpenRouter);
 
 const configWithKeys: ProviderConfig = {
 	anthropic: { apiKey: "sk-ant-test" },
@@ -119,13 +129,11 @@ describe("resolveModel", () => {
 		expect(model).toBeDefined();
 	});
 
-	it("resolves openrouter model with custom baseURL", () => {
-		mockedCreateOpenAI.mockClear();
+	it("resolves openrouter model with dedicated provider", () => {
+		mockedCreateOpenRouter.mockClear();
 		const model = resolveModel("mistral-large-latest", configWithKeys);
-		expect(mockedCreateOpenAI).toHaveBeenCalledWith({
+		expect(mockedCreateOpenRouter).toHaveBeenCalledWith({
 			apiKey: "sk-or-test",
-			baseURL: "https://openrouter.ai/api/v1",
-			name: "openrouter",
 		});
 		expect(model).toBeDefined();
 	});

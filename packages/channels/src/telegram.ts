@@ -3,7 +3,7 @@ import type { OutboundMessage } from "@featherbot/bus";
 import { Bot } from "grammy";
 import type { PhotoSize } from "grammy/types";
 import { BaseChannel } from "./base.js";
-import { escapeTelegramMarkdown } from "./telegram-format.js";
+import { escapeTelegramMarkdown, truncateForTelegram } from "./telegram-format.js";
 import type { ChannelOptions } from "./types.js";
 
 export interface TelegramChannelOptions extends ChannelOptions {
@@ -75,7 +75,8 @@ export class TelegramChannel extends BaseChannel {
 		if (this.bot === undefined) return;
 
 		const chatId = message.chatId;
-		const escaped = escapeTelegramMarkdown(message.content);
+		const text = truncateForTelegram(message.content);
+		const escaped = escapeTelegramMarkdown(text);
 
 		// biome-ignore lint/suspicious/noExplicitAny: grammy sendMessage options
 		const options: any = { parse_mode: "MarkdownV2" };
@@ -93,7 +94,7 @@ export class TelegramChannel extends BaseChannel {
 				plainOptions.reply_to_message_id = Number(message.inReplyToMessageId);
 			}
 			try {
-				await this.bot.api.sendMessage(chatId, message.content, plainOptions);
+				await this.bot.api.sendMessage(chatId, text, plainOptions);
 			} catch (err) {
 				console.error("Telegram send error:", err);
 			}
