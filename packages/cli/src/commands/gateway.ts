@@ -10,6 +10,7 @@ import {
 } from "@featherbot/channels";
 import {
 	CronTool,
+	Gateway,
 	SpawnTool,
 	SubagentManager,
 	SubagentStatusTool,
@@ -19,47 +20,44 @@ import {
 	createToolRegistry,
 	loadConfig,
 } from "@featherbot/core";
-import type { SpawnToolOriginContext } from "@featherbot/core";
+import type { FeatherBotConfig, SpawnToolOriginContext } from "@featherbot/core";
 import { CronService, HeartbeatService, buildHeartbeatPrompt } from "@featherbot/scheduler";
 import type { Command } from "commander";
 
-export async function runGateway(): Promise<void> {
-	const config = loadConfig();
-	const bus = new MessageBus();
+function resolveHome(path: string): string {
+	return path.startsWith("~") ? join(homedir(), path.slice(1)) : resolve(path);
+}
 
+export function createGateway(config: FeatherBotConfig): Gateway {
+	const bus = new MessageBus();
 	const toolRegistry = createToolRegistry(config);
 
 	let cronService: CronService | undefined;
-	let cronTool: CronTool | undefined;
-
 	if (config.cron.enabled) {
 		cronService = new CronService({
 			storePath: config.cron.storePath,
 			onJobFire: async (job) => {
-				const agentResult = await agentLoop.processDirect(job.payload.message, {
+				const result = await agentLoop.processDirect(job.payload.message, {
 					sessionKey: `cron:${job.id}`,
 				});
-				if (job.payload.channel && job.payload.chatId && agentResult.text) {
-					const outbound = createOutboundMessage({
-						channel: job.payload.channel,
-						chatId: job.payload.chatId,
-						content: agentResult.text,
-						replyTo: null,
-						media: [],
-						metadata: {},
-						inReplyToMessageId: null,
-					});
+				if (job.payload.channel && job.payload.chatId && result.text) {
 					await bus.publish({
 						type: "message:outbound",
-						message: outbound,
+						message: createOutboundMessage({
+							channel: job.payload.channel,
+							chatId: job.payload.chatId,
+							content: result.text,
+							replyTo: null,
+							media: [],
+							metadata: {},
+							inReplyToMessageId: null,
+						}),
 						timestamp: new Date(),
 					});
 				}
 			},
 		});
-
-		cronTool = new CronTool(cronService);
-		toolRegistry.register(cronTool);
+		toolRegistry.register(new CronTool(cronService));
 	}
 
 	const originContext: SpawnToolOriginContext = { channel: "", chatId: "" };
@@ -69,40 +67,32 @@ export async function runGateway(): Promise<void> {
 			state.status === "completed"
 				? `Background task completed:\nTask: ${state.task}\nResult: ${state.result}`
 				: `Background task failed:\nTask: ${state.task}\nError: ${state.error}`;
-		const outbound = createOutboundMessage({
-			channel: state.originChannel,
-			chatId: state.originChatId,
-			content,
-			replyTo: null,
-			media: [],
-			metadata: {},
-			inReplyToMessageId: null,
-		});
 		await bus.publish({
 			type: "message:outbound",
-			message: outbound,
+			message: createOutboundMessage({
+				channel: state.originChannel,
+				chatId: state.originChatId,
+				content,
+				replyTo: null,
+				media: [],
+				metadata: {},
+				inReplyToMessageId: null,
+			}),
 			timestamp: new Date(),
 		});
 	});
 
-	const spawnTool = new SpawnTool(subagentManager, originContext);
-	const subagentStatusTool = new SubagentStatusTool(subagentManager);
-	toolRegistry.register(spawnTool);
-	toolRegistry.register(subagentStatusTool);
+	toolRegistry.register(new SpawnTool(subagentManager, originContext));
+	toolRegistry.register(new SubagentStatusTool(subagentManager));
 
 	const agentLoop = createAgentLoop(config, { toolRegistry });
 
 	let heartbeatService: HeartbeatService | undefined;
-
 	if (config.heartbeat.enabled) {
-		const workspace = config.agents.defaults.workspace.startsWith("~")
-			? join(homedir(), config.agents.defaults.workspace.slice(1))
-			: resolve(config.agents.defaults.workspace);
-		const heartbeatFilePath = join(workspace, config.heartbeat.heartbeatFile);
-
+		const workspace = resolveHome(config.agents.defaults.workspace);
 		heartbeatService = new HeartbeatService({
 			intervalMs: config.heartbeat.intervalMs,
-			heartbeatFilePath,
+			heartbeatFilePath: join(workspace, config.heartbeat.heartbeatFile),
 			onTick: async (content) => {
 				const prompt = buildHeartbeatPrompt(content);
 				await agentLoop.processDirect(prompt, {
@@ -115,28 +105,26 @@ export async function runGateway(): Promise<void> {
 
 	const adapter = new BusAdapter({ bus, agentLoop });
 	const channelManager = new ChannelManager({ bus });
-	const terminal = new TerminalChannel({ bus });
-	channelManager.register(terminal);
+	channelManager.register(new TerminalChannel({ bus }));
 
 	if (config.channels.telegram.enabled && config.channels.telegram.token) {
-		const telegram = new TelegramChannel({
-			bus,
-			token: config.channels.telegram.token,
-			allowFrom: config.channels.telegram.allowFrom,
-		});
-		channelManager.register(telegram);
+		channelManager.register(
+			new TelegramChannel({
+				bus,
+				token: config.channels.telegram.token,
+				allowFrom: config.channels.telegram.allowFrom,
+			}),
+		);
 	}
 
 	if (config.channels.whatsapp.enabled) {
-		const authDir = config.channels.whatsapp.authDir.startsWith("~")
-			? join(homedir(), config.channels.whatsapp.authDir.slice(1))
-			: resolve(config.channels.whatsapp.authDir);
-		const whatsapp = new WhatsAppChannel({
-			bus,
-			authDir,
-			allowFrom: config.channels.whatsapp.allowFrom,
-		});
-		channelManager.register(whatsapp);
+		channelManager.register(
+			new WhatsAppChannel({
+				bus,
+				authDir: resolveHome(config.channels.whatsapp.authDir),
+				allowFrom: config.channels.whatsapp.allowFrom,
+			}),
+		);
 	}
 
 	bus.subscribe("message:inbound", (event) => {
@@ -144,18 +132,21 @@ export async function runGateway(): Promise<void> {
 		originContext.chatId = event.message.chatId;
 	});
 
-	adapter.start();
-	await channelManager.startAll();
+	return new Gateway({
+		bus,
+		adapter,
+		channelManager,
+		cronService,
+		heartbeatService,
+	});
+}
 
-	if (cronService !== undefined) {
-		cronService.start();
-	}
+export async function runGateway(): Promise<void> {
+	const config = loadConfig();
+	const gateway = createGateway(config);
+	await gateway.start();
 
-	if (heartbeatService !== undefined) {
-		heartbeatService.start();
-	}
-
-	const channels = channelManager.getChannels().map((ch) => ch.name);
+	const channels = gateway.getActiveChannels();
 	console.log("\nFeatherBot gateway running");
 	console.log(`Active channels: ${channels.join(", ")}`);
 	if (config.channels.telegram.enabled) {
@@ -164,34 +155,20 @@ export async function runGateway(): Promise<void> {
 	if (config.channels.whatsapp.enabled) {
 		console.log("WhatsApp: connected");
 	}
-	if (cronService !== undefined) {
+	if (config.cron.enabled) {
 		console.log("Cron scheduler: enabled");
 	}
-	if (heartbeatService !== undefined) {
+	if (config.heartbeat.enabled) {
 		const minutes = Math.round(config.heartbeat.intervalMs / 60000);
 		console.log(`Heartbeat: enabled (every ${minutes}m)`);
 	}
 	console.log("Sub-agents: enabled");
 	console.log("");
 
-	let shuttingDown = false;
 	const shutdown = () => {
-		if (shuttingDown) return;
-		shuttingDown = true;
 		console.log("\nShutting down...");
-		if (heartbeatService !== undefined) {
-			heartbeatService.stop();
-		}
-		if (cronService !== undefined) {
-			cronService.stop();
-		}
-		channelManager.stopAll().then(() => {
-			adapter.stop();
-			bus.close();
-			process.exit(0);
-		});
+		gateway.stop().then(() => process.exit(0));
 	};
-
 	process.on("SIGINT", shutdown);
 	process.on("SIGTERM", shutdown);
 }

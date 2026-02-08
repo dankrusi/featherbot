@@ -133,3 +133,12 @@ export {
 	SqliteHistory,
 } from "./session/index.js";
 export type { SessionRecord } from "./session/index.js";
+export { Gateway } from "./gateway/index.js";
+export type {
+	GatewayAdapter,
+	GatewayBus,
+	GatewayChannelManager,
+	GatewayCronService,
+	GatewayHeartbeatService,
+	GatewayOptions,
+} from "./gateway/index.js";
