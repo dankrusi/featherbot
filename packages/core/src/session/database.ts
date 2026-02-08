@@ -1,7 +1,16 @@
+import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import Database from "better-sqlite3";
 
+function resolveHome(path: string): string {
+	return path.startsWith("~") ? join(homedir(), path.slice(1)) : path;
+}
+
 export function initDatabase(dbPath: string): Database.Database {
-	const db = new Database(dbPath);
+	const resolved = resolveHome(dbPath);
+	mkdirSync(dirname(resolved), { recursive: true });
+	const db = new Database(resolved);
 
 	db.pragma("journal_mode = WAL");
 	db.pragma("foreign_keys = ON");
