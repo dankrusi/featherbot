@@ -98,7 +98,8 @@ export class ContextBuilder {
 		const lines = [
 			"## Memory Management",
 			"You have a memory file at memory/MEMORY.md with sections: Facts, Observed Patterns, and Pending.",
-			"As you converse, selectively update it using edit_file. Only log what matters:",
+			"When you learn something worth remembering, you MUST call edit_file on memory/MEMORY.md to persist it. Never claim you stored something in memory without a successful edit_file result.",
+			"Only log what matters:",
 			"",
 			"**Facts** — User preferences, personal details, projects, or things they explicitly ask you to remember.",
 			"**Observed Patterns** — Recurring behaviors you notice over multiple conversations (e.g., always asks for concise answers, works late at night, prefers Python over JS).",
@@ -107,6 +108,8 @@ export class ContextBuilder {
 			"Guidelines:",
 			"- Do NOT log every message or trivial details — only meaningful, reusable information.",
 			'- If the user says "remember this" or similar, always persist it.',
+			"- When the user shares personal info (name, location, workplace, preferences), call edit_file IMMEDIATELY in the same turn — do not just acknowledge it.",
+			'- NEVER say "stored in memory" or "noted" unless edit_file returned a success result.',
 			"- Update existing entries rather than duplicating them.",
 			"- Remove Pending items once they are resolved.",
 			"- For daily context (today's tasks, current mood, etc.), use a daily note at memory/YYYY-MM-DD.md instead.",
