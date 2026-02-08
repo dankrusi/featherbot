@@ -33,7 +33,7 @@ export const MODEL_CHOICES: Record<ProviderName, ModelChoice[]> = {
 	],
 	openrouter: [
 		{
-			id: "openrouter/anthropic/claude-sonnet-4-5-20250929",
+			id: "openrouter/anthropic/claude-sonnet-4.5",
 			label: "Claude Sonnet 4.5 (via OpenRouter)",
 			description: "Anthropic's best model via OpenRouter",
 		},
