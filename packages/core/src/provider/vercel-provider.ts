@@ -45,11 +45,12 @@ function mapUsage(usage: {
 }
 
 function buildTools(tools: Record<string, ToolDefinition>) {
-	const result: Record<string, { description: string; parameters: unknown; execute: unknown }> = {};
+	const result: Record<string, { description: string; inputSchema: unknown; execute: unknown }> =
+		{};
 	for (const [name, def] of Object.entries(tools)) {
 		result[name] = {
 			description: def.description,
-			parameters: def.parameters,
+			inputSchema: def.parameters,
 			execute: async (params: Record<string, unknown>) => def.execute(params),
 		};
 	}
@@ -184,23 +185,28 @@ export class VercelLLMProvider implements LLMProvider {
 				}),
 			);
 
-			return {
-				text: result.text,
-				toolCalls: mapToolCalls(
-					result.toolCalls as unknown as Array<{
+			const allToolCalls = result.steps.flatMap(
+				(s) =>
+					s.toolCalls as unknown as Array<{
 						toolCallId: string;
 						toolName: string;
 						input: unknown;
 					}>,
-				),
-				toolResults: mapToolResults(
-					result.toolResults as unknown as Array<{
+			);
+			const allToolResults = result.steps.flatMap(
+				(s) =>
+					s.toolResults as unknown as Array<{
 						toolCallId: string;
 						toolName: string;
 						output: unknown;
 					}>,
-				),
-				usage: mapUsage(result.usage),
+			);
+
+			return {
+				text: result.text,
+				toolCalls: mapToolCalls(allToolCalls),
+				toolResults: mapToolResults(allToolResults),
+				usage: mapUsage(result.totalUsage),
 				finishReason: result.finishReason,
 			};
 		} catch (error) {
@@ -254,29 +260,36 @@ export class VercelLLMProvider implements LLMProvider {
 			);
 
 			const resultPromise: Promise<GenerateResult> = (async () => {
-				const [text, toolCalls, toolResults, usage, finishReason] = await Promise.all([
+				const [text, steps, usage, finishReason] = await Promise.all([
 					aiResult.text,
-					aiResult.toolCalls,
-					aiResult.toolResults,
+					aiResult.steps,
 					aiResult.totalUsage,
 					aiResult.finishReason,
 				]);
-				return {
-					text: text as string,
-					toolCalls: mapToolCalls(
-						toolCalls as unknown as Array<{
+				const allToolCalls = (
+					steps as Array<{ toolCalls: unknown[]; toolResults: unknown[] }>
+				).flatMap(
+					(s) =>
+						s.toolCalls as unknown as Array<{
 							toolCallId: string;
 							toolName: string;
 							input: unknown;
 						}>,
-					),
-					toolResults: mapToolResults(
-						toolResults as unknown as Array<{
+				);
+				const allToolResults = (
+					steps as Array<{ toolCalls: unknown[]; toolResults: unknown[] }>
+				).flatMap(
+					(s) =>
+						s.toolResults as unknown as Array<{
 							toolCallId: string;
 							toolName: string;
 							output: unknown;
 						}>,
-					),
+				);
+				return {
+					text: text as string,
+					toolCalls: mapToolCalls(allToolCalls),
+					toolResults: mapToolResults(allToolResults),
 					usage: mapUsage(
 						usage as { inputTokens?: number; outputTokens?: number; totalTokens?: number },
 					),

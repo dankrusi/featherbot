@@ -39,8 +39,22 @@ export class ToolRegistry {
 		try {
 			const parsed = tool.parameters.safeParse(params);
 			if (!parsed.success) {
-				const issues = parsed.error.issues.map((i) => i.message).join(", ");
-				return `Error: Invalid parameters for '${name}': ${issues}`;
+				const issues = parsed.error.issues
+					.map((i) => {
+						const path = i.path.length > 0 ? `${i.path.join(".")}: ` : "";
+						return `${path}${i.message}`;
+					})
+					.join(", ");
+				const shape = Object.entries(tool.parameters.shape)
+					.map(([key, val]) => {
+						// biome-ignore lint/suspicious/noExplicitAny: Zod shape values have complex types
+						const v = val as any;
+						const opt = v.isOptional?.() ? "?" : "";
+						const desc = v._def?.description ?? v.unwrap?.()._def?.description ?? "";
+						return `  ${key}${opt}: ${desc}`;
+					})
+					.join("\n");
+				return `Error: Invalid parameters for '${name}': ${issues}\nExpected schema:\n${shape}`;
 			}
 
 			return await tool.execute(parsed.data);

@@ -100,12 +100,19 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 		memoryStore,
 		skillsLoader,
 		onStepFinish: (event) => {
-			for (const tc of event.toolCalls) {
-				console.log(`[tool] ${tc.name}(${JSON.stringify(tc.arguments)})`);
-			}
+			const resultsByCallId = new Map<string, string>();
 			for (const tr of event.toolResults) {
-				const preview = tr.content.length > 200 ? `${tr.content.slice(0, 200)}...` : tr.content;
-				console.log(`[tool] ${tr.toolName} → ${preview}`);
+				resultsByCallId.set(tr.toolCallId, tr.content);
+			}
+			for (const tc of event.toolCalls) {
+				const args = JSON.stringify(tc.arguments);
+				const result = resultsByCallId.get(tc.id);
+				if (result !== undefined) {
+					const preview = result.length > 200 ? `${result.slice(0, 200)}...` : result;
+					console.log(`[tool] ${tc.name}(${args}) → ${preview}`);
+				} else {
+					console.log(`[tool] ${tc.name}(${args})`);
+				}
 			}
 		},
 	});

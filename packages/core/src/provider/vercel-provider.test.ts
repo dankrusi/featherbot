@@ -40,12 +40,15 @@ function mockStreamResult(overrides: {
 	totalUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
 	finishReason?: string;
 }) {
+	const tc = overrides.toolCalls ?? [];
+	const tr = overrides.toolResults ?? [];
 	return {
 		textStream: toAsyncIterable(overrides.textChunks ?? []),
 		fullStream: toAsyncIterable(overrides.fullStreamParts ?? []),
 		text: Promise.resolve(overrides.text ?? ""),
-		toolCalls: Promise.resolve(overrides.toolCalls ?? []),
-		toolResults: Promise.resolve(overrides.toolResults ?? []),
+		toolCalls: Promise.resolve(tc),
+		toolResults: Promise.resolve(tr),
+		steps: Promise.resolve([{ toolCalls: tc, toolResults: tr }]),
 		totalUsage: Promise.resolve(
 			overrides.totalUsage ?? { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
 		),
@@ -73,7 +76,9 @@ describe("VercelLLMProvider.generate", () => {
 			text: "Hello, world!",
 			toolCalls: [],
 			toolResults: [],
+			steps: [{ toolCalls: [], toolResults: [] }],
 			usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+			totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
 			finishReason: "stop",
 		});
 
@@ -90,23 +95,15 @@ describe("VercelLLMProvider.generate", () => {
 	});
 
 	it("maps tool calls from AI SDK format to our format", async () => {
+		const tc = [{ toolCallId: "call-1", toolName: "shell", input: { command: "ls" } }];
+		const tr = [{ toolCallId: "call-1", toolName: "shell", output: "file1.txt\nfile2.txt" }];
 		mockGenerateText.mockResolvedValueOnce({
 			text: "",
-			toolCalls: [
-				{
-					toolCallId: "call-1",
-					toolName: "shell",
-					input: { command: "ls" },
-				},
-			],
-			toolResults: [
-				{
-					toolCallId: "call-1",
-					toolName: "shell",
-					output: "file1.txt\nfile2.txt",
-				},
-			],
+			toolCalls: tc,
+			toolResults: tr,
+			steps: [{ toolCalls: tc, toolResults: tr }],
 			usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30 },
+			totalUsage: { inputTokens: 20, outputTokens: 10, totalTokens: 30 },
 			finishReason: "tool-calls",
 		});
 
@@ -144,7 +141,9 @@ describe("VercelLLMProvider.generate", () => {
 			text: "ok",
 			toolCalls: [],
 			toolResults: [],
+			steps: [{ toolCalls: [], toolResults: [] }],
 			usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+			totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
 			finishReason: "stop",
 		});
 
@@ -168,7 +167,9 @@ describe("VercelLLMProvider.generate", () => {
 			text: "ok",
 			toolCalls: [],
 			toolResults: [],
+			steps: [{ toolCalls: [], toolResults: [] }],
 			usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+			totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
 			finishReason: "stop",
 		});
 
@@ -187,7 +188,9 @@ describe("VercelLLMProvider.generate", () => {
 			text: "ok",
 			toolCalls: [],
 			toolResults: [],
+			steps: [{ toolCalls: [], toolResults: [] }],
 			usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+			totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
 			finishReason: "stop",
 		});
 
@@ -207,7 +210,9 @@ describe("VercelLLMProvider.generate", () => {
 			text: "ok",
 			toolCalls: [],
 			toolResults: [],
+			steps: [{ toolCalls: [], toolResults: [] }],
 			usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+			totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
 			finishReason: "stop",
 		});
 
@@ -224,7 +229,9 @@ describe("VercelLLMProvider.generate", () => {
 			text: "ok",
 			toolCalls: [],
 			toolResults: [],
+			steps: [{ toolCalls: [], toolResults: [] }],
 			usage: {},
+			totalUsage: {},
 			finishReason: "stop",
 		});
 
