@@ -1,0 +1,121 @@
+import { describe, expect, it } from "vitest";
+import type { FeatherBotConfig } from "./schema.js";
+import { checkStartupConfig } from "./startup-check.js";
+
+function makeConfig(overrides?: Partial<FeatherBotConfig>): FeatherBotConfig {
+	return {
+		agents: {
+			defaults: {
+				workspace: "~/.featherbot/workspace",
+				model: "anthropic/claude-sonnet-4-5-20250929",
+				maxTokens: 8192,
+				temperature: 0.7,
+				maxToolIterations: 20,
+				bootstrapFiles: [],
+			},
+		},
+		channels: {
+			telegram: { enabled: false, token: "", allowFrom: [] },
+			whatsapp: { enabled: false, allowFrom: [], authDir: "~/.featherbot/whatsapp-auth" },
+			discord: { enabled: false, token: "" },
+		},
+		providers: {
+			anthropic: { apiKey: "sk-ant-test" },
+			openai: { apiKey: "" },
+			openrouter: { apiKey: "" },
+		},
+		tools: {
+			web: {
+				search: { apiKey: "", maxResults: 5 },
+				fetch: { maxContentLength: 50000, timeoutMs: 30000 },
+			},
+			exec: { timeout: 60 },
+			restrictToWorkspace: false,
+		},
+		session: { dbPath: "", maxMessages: 50 },
+		cron: { enabled: false, storePath: "" },
+		heartbeat: { enabled: false, intervalMs: 1800000, heartbeatFile: "HEARTBEAT.md" },
+		subagent: { maxIterations: 15, timeoutMs: 300000 },
+		...overrides,
+	};
+}
+
+describe("checkStartupConfig", () => {
+	it("returns ready when API key is set for the default model provider", () => {
+		const result = checkStartupConfig(makeConfig());
+		expect(result.ready).toBe(true);
+		expect(result.errors).toHaveLength(0);
+	});
+
+	it("returns error when API key is missing for default model provider", () => {
+		const result = checkStartupConfig(
+			makeConfig({
+				providers: {
+					anthropic: { apiKey: "" },
+					openai: { apiKey: "" },
+					openrouter: { apiKey: "" },
+				},
+			}),
+		);
+		expect(result.ready).toBe(false);
+		expect(result.errors[0]).toContain("No API key");
+		expect(result.errors[0]).toContain("featherbot onboard");
+	});
+
+	it("returns error when telegram is enabled but token is missing", () => {
+		const result = checkStartupConfig(
+			makeConfig({
+				channels: {
+					telegram: { enabled: true, token: "", allowFrom: [] },
+					whatsapp: { enabled: false, allowFrom: [], authDir: "~/.featherbot/whatsapp-auth" },
+					discord: { enabled: false, token: "" },
+				},
+			}),
+		);
+		expect(result.ready).toBe(false);
+		expect(result.errors).toEqual(expect.arrayContaining([expect.stringContaining("Telegram")]));
+	});
+
+	it("returns warning when whatsapp is enabled", () => {
+		const result = checkStartupConfig(
+			makeConfig({
+				channels: {
+					telegram: { enabled: false, token: "", allowFrom: [] },
+					whatsapp: { enabled: true, allowFrom: [], authDir: "~/.featherbot/whatsapp-auth" },
+					discord: { enabled: false, token: "" },
+				},
+			}),
+		);
+		expect(result.ready).toBe(true);
+		expect(result.warnings[0]).toContain("WhatsApp");
+		expect(result.warnings[0]).toContain("featherbot whatsapp login");
+	});
+
+	it("checks correct provider for openai model", () => {
+		const result = checkStartupConfig(
+			makeConfig({
+				agents: {
+					defaults: {
+						workspace: "~/.featherbot/workspace",
+						model: "openai/gpt-4o",
+						maxTokens: 8192,
+						temperature: 0.7,
+						maxToolIterations: 20,
+						bootstrapFiles: [],
+					},
+				},
+				providers: {
+					anthropic: { apiKey: "" },
+					openai: { apiKey: "sk-openai-key" },
+					openrouter: { apiKey: "" },
+				},
+			}),
+		);
+		expect(result.ready).toBe(true);
+	});
+
+	it("returns no warnings when channels are disabled", () => {
+		const result = checkStartupConfig(makeConfig());
+		expect(result.warnings).toHaveLength(0);
+	});
+});

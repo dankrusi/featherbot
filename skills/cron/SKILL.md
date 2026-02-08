@@ -2,7 +2,7 @@
 name: cron
 description: Schedule reminders and recurring tasks
 metadata:
-  nanobot:
+  featherbot:
     always: false
 ---
 

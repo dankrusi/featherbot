@@ -1,10 +1,24 @@
 import { MessageBus } from "@featherbot/bus";
 import { BusAdapter, ChannelManager, TerminalChannel } from "@featherbot/channels";
-import { createAgentLoop, loadConfig } from "@featherbot/core";
+import { checkStartupConfig, createAgentLoop, loadConfig } from "@featherbot/core";
 import type { Command } from "commander";
+
+function validateOrExit(config: ReturnType<typeof loadConfig>): void {
+	const check = checkStartupConfig(config);
+	for (const warning of check.warnings) {
+		console.warn(`Warning: ${warning}`);
+	}
+	if (!check.ready) {
+		for (const error of check.errors) {
+			console.error(`Error: ${error}`);
+		}
+		process.exit(1);
+	}
+}
 
 export async function runSingleShot(message: string): Promise<void> {
 	const config = loadConfig();
+	validateOrExit(config);
 	const agentLoop = createAgentLoop(config);
 	const result = await agentLoop.processDirect(message, {
 		sessionKey: "cli:direct",
@@ -14,6 +28,7 @@ export async function runSingleShot(message: string): Promise<void> {
 
 export async function runRepl(): Promise<void> {
 	const config = loadConfig();
+	validateOrExit(config);
 	const agentLoop = createAgentLoop(config);
 	const bus = new MessageBus();
 	const adapter = new BusAdapter({ bus, agentLoop });

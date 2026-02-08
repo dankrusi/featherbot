@@ -1,6 +1,6 @@
 # FeatherBot - Claude Code Instructions
 
-> TypeScript reimplementation of nanobot (HKUDS) as a personal AI agent framework.
+> A personal AI agent framework built with TypeScript.
 > See `ARCHITECTURE.md` for full reference architecture.
 
 ## Project Context
@@ -38,8 +38,7 @@ This project uses a structured iterative build process driven by three skills:
 | `progress.txt` | Append-only learnings log — patterns, gotchas, context for future work |
 | `tasks/prd-*.md` | Human-readable PRDs for each milestone |
 | `tasks/ROADMAP.md` | All 20 milestones with dependency graph |
-| `ARCHITECTURE.md` | Full reference architecture (nanobot analysis + FeatherBot design) |
-| `analysis-*.md` | Detailed nanobot sub-analysis files (reference only) |
+| `ARCHITECTURE.md` | Full reference architecture |
 
 ### Quality Requirements
 

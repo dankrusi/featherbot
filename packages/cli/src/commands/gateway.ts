@@ -14,6 +14,7 @@ import {
 	SpawnTool,
 	SubagentManager,
 	SubagentStatusTool,
+	checkStartupConfig,
 	createAgentLoop,
 	createOutboundMessage,
 	createProvider,
@@ -146,6 +147,18 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 
 export async function runGateway(): Promise<void> {
 	const config = loadConfig();
+
+	const check = checkStartupConfig(config);
+	for (const warning of check.warnings) {
+		console.warn(`Warning: ${warning}`);
+	}
+	if (!check.ready) {
+		for (const error of check.errors) {
+			console.error(`Error: ${error}`);
+		}
+		process.exit(1);
+	}
+
 	const gateway = createGateway(config);
 	await gateway.start();
 
