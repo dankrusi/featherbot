@@ -74,6 +74,12 @@ export const CronConfigSchema = z.object({
 	storePath: z.string().default("~/.featherbot/cron.json"),
 });
 
+export const HeartbeatConfigSchema = z.object({
+	enabled: z.boolean().default(true),
+	intervalMs: z.number().int().positive().default(1800000),
+	heartbeatFile: z.string().default("HEARTBEAT.md"),
+});
+
 export const FeatherBotConfigSchema = z.object({
 	agents: z.object({ defaults: AgentConfigSchema.default({}) }).default({}),
 	channels: ChannelConfigSchema.default({}),
@@ -81,6 +87,7 @@ export const FeatherBotConfigSchema = z.object({
 	tools: ToolConfigSchema.default({}),
 	session: SessionConfigSchema.default({}),
 	cron: CronConfigSchema.default({}),
+	heartbeat: HeartbeatConfigSchema.default({}),
 });
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
@@ -89,4 +96,5 @@ export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type SessionConfig = z.infer<typeof SessionConfigSchema>;
 export type ToolConfig = z.infer<typeof ToolConfigSchema>;
 export type CronConfig = z.infer<typeof CronConfigSchema>;
+export type HeartbeatConfig = z.infer<typeof HeartbeatConfigSchema>;
 export type FeatherBotConfig = z.infer<typeof FeatherBotConfigSchema>;
