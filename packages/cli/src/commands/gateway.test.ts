@@ -36,6 +36,16 @@ vi.mock("@featherbot/core", () => ({
 		processDirect: vi.fn().mockResolvedValue({ text: "" }),
 		processMessage: vi.fn(),
 	})),
+	createMemoryStore: vi.fn(() => ({
+		getMemoryContext: vi.fn().mockResolvedValue(""),
+		getRecentMemories: vi.fn().mockResolvedValue(""),
+		getMemoryFilePath: vi.fn().mockReturnValue(""),
+		getDailyNotePath: vi.fn().mockReturnValue(""),
+	})),
+	createSkillsLoader: vi.fn(() => ({
+		getAlwaysLoadedSkills: vi.fn().mockReturnValue([]),
+		buildSummary: vi.fn().mockReturnValue(""),
+	})),
 	createProvider: vi.fn(() => ({})),
 	createToolRegistry: vi.fn(() => ({
 		register: vi.fn(),

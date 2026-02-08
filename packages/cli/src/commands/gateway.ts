@@ -16,8 +16,10 @@ import {
 	SubagentStatusTool,
 	checkStartupConfig,
 	createAgentLoop,
+	createMemoryStore,
 	createOutboundMessage,
 	createProvider,
+	createSkillsLoader,
 	createToolRegistry,
 	loadConfig,
 } from "@featherbot/core";
@@ -86,7 +88,16 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 	toolRegistry.register(new SpawnTool(subagentManager, originContext));
 	toolRegistry.register(new SubagentStatusTool(subagentManager));
 
-	const agentLoop = createAgentLoop(config, { toolRegistry });
+	const workspace = resolveHome(config.agents.defaults.workspace);
+	const memoryStore = createMemoryStore(workspace);
+	const skillsLoader = createSkillsLoader({ workspacePath: workspace });
+
+	const agentLoop = createAgentLoop(config, {
+		toolRegistry,
+		workspacePath: workspace,
+		memoryStore,
+		skillsLoader,
+	});
 
 	let heartbeatService: HeartbeatService | undefined;
 	if (config.heartbeat.enabled) {

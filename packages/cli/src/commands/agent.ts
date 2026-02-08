@@ -1,7 +1,19 @@
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { MessageBus } from "@featherbot/bus";
 import { BusAdapter, ChannelManager, TerminalChannel } from "@featherbot/channels";
-import { checkStartupConfig, createAgentLoop, loadConfig } from "@featherbot/core";
+import {
+	checkStartupConfig,
+	createAgentLoop,
+	createMemoryStore,
+	createSkillsLoader,
+	loadConfig,
+} from "@featherbot/core";
 import type { Command } from "commander";
+
+function resolveHome(path: string): string {
+	return path.startsWith("~") ? join(homedir(), path.slice(1)) : resolve(path);
+}
 
 function validateOrExit(config: ReturnType<typeof loadConfig>): void {
 	const check = checkStartupConfig(config);
@@ -16,10 +28,21 @@ function validateOrExit(config: ReturnType<typeof loadConfig>): void {
 	}
 }
 
+function createConfiguredLoop(config: ReturnType<typeof loadConfig>) {
+	const workspace = resolveHome(config.agents.defaults.workspace);
+	const memoryStore = createMemoryStore(workspace);
+	const skillsLoader = createSkillsLoader({ workspacePath: workspace });
+	return createAgentLoop(config, {
+		workspacePath: workspace,
+		memoryStore,
+		skillsLoader,
+	});
+}
+
 export async function runSingleShot(message: string): Promise<void> {
 	const config = loadConfig();
 	validateOrExit(config);
-	const agentLoop = createAgentLoop(config);
+	const agentLoop = createConfiguredLoop(config);
 	const result = await agentLoop.processDirect(message, {
 		sessionKey: "cli:direct",
 	});
@@ -29,7 +52,7 @@ export async function runSingleShot(message: string): Promise<void> {
 export async function runRepl(): Promise<void> {
 	const config = loadConfig();
 	validateOrExit(config);
-	const agentLoop = createAgentLoop(config);
+	const agentLoop = createConfiguredLoop(config);
 	const bus = new MessageBus();
 	const adapter = new BusAdapter({ bus, agentLoop });
 	const channelManager = new ChannelManager({ bus });

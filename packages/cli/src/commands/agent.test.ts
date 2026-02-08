@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@featherbot/core", () => ({
+	createMemoryStore: vi.fn(() => ({
+		getMemoryContext: vi.fn().mockResolvedValue(""),
+		getRecentMemories: vi.fn().mockResolvedValue(""),
+		getMemoryFilePath: vi.fn().mockReturnValue(""),
+		getDailyNotePath: vi.fn().mockReturnValue(""),
+	})),
+	createSkillsLoader: vi.fn(() => ({
+		getAlwaysLoadedSkills: vi.fn().mockReturnValue([]),
+		buildSummary: vi.fn().mockReturnValue(""),
+	})),
 	loadConfig: vi.fn(() => ({
 		agents: {
 			defaults: {
