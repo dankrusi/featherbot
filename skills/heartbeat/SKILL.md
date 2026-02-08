@@ -2,7 +2,7 @@
 name: heartbeat
 description: Periodic self-wake and proactive behavior
 metadata:
-  nanobot:
+  featherbot:
     always: false
 ---
 

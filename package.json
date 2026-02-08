@@ -10,7 +10,9 @@
 		"build": "turbo run build",
 		"typecheck": "turbo run typecheck",
 		"lint": "turbo run lint",
-		"test": "turbo run test"
+		"test": "turbo run test",
+		"start": "node packages/cli/dist/bin.js start",
+		"setup": "pnpm install && pnpm build && node packages/cli/dist/bin.js onboard"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",

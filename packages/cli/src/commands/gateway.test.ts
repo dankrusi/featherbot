@@ -31,6 +31,7 @@ vi.mock("@featherbot/core", () => ({
 		getActiveChannels: vi.fn().mockReturnValue([]),
 		opts,
 	})),
+	checkStartupConfig: vi.fn(() => ({ ready: true, errors: [], warnings: [] })),
 	createAgentLoop: vi.fn(() => ({
 		processDirect: vi.fn().mockResolvedValue({ text: "" }),
 		processMessage: vi.fn(),

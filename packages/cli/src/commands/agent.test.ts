@@ -14,11 +14,11 @@ vi.mock("@featherbot/core", () => ({
 		},
 		channels: {
 			telegram: { enabled: false, token: "", allowFrom: [] },
-			whatsapp: { enabled: false, bridgeUrl: "" },
+			whatsapp: { enabled: false, allowFrom: [], authDir: "~/.featherbot/whatsapp-auth" },
 			discord: { enabled: false, token: "" },
 		},
 		providers: {
-			anthropic: { apiKey: "" },
+			anthropic: { apiKey: "sk-ant-test" },
 			openai: { apiKey: "" },
 			openrouter: { apiKey: "" },
 		},
@@ -29,6 +29,7 @@ vi.mock("@featherbot/core", () => ({
 		},
 		session: { dbPath: "", maxMessages: 50 },
 	})),
+	checkStartupConfig: vi.fn(() => ({ ready: true, errors: [], warnings: [] })),
 	createAgentLoop: vi.fn(() => ({
 		processDirect: vi.fn().mockResolvedValue({
 			text: "The answer is 4",

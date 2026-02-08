@@ -50,8 +50,10 @@ describe("runOnboard", () => {
 		rmSync(testDir, { recursive: true, force: true });
 	});
 
-	it("creates config file with chosen provider and API key", async () => {
-		const { input, output } = createStreams(["1", "sk-test-key-123"]);
+	// New flow: apiKey → confirm detection → model → telegram → whatsapp
+	it("creates config with auto-detected anthropic provider", async () => {
+		// sk-ant-key → detected anthropic → confirm Y → model 1 → no telegram → no whatsapp
+		const { input, output } = createStreams(["sk-ant-test-key-123", "y", "1", "n", "n"]);
 		const configDir = join(testDir, "config");
 		const workspaceDir = join(testDir, "workspace");
 
@@ -67,11 +69,11 @@ describe("runOnboard", () => {
 		expect(existsSync(configPath)).toBe(true);
 
 		const config = JSON.parse(readFileSync(configPath, "utf-8"));
-		expect(config.providers.anthropic.apiKey).toBe("sk-test-key-123");
+		expect(config.providers.anthropic.apiKey).toBe("sk-ant-test-key-123");
 	});
 
 	it("creates workspace directory with template files", async () => {
-		const { input, output } = createStreams(["1", "sk-test-key"]);
+		const { input, output } = createStreams(["sk-ant-test-key", "y", "1", "n", "n"]);
 		const configDir = join(testDir, "config");
 		const workspaceDir = join(testDir, "workspace");
 
@@ -90,8 +92,9 @@ describe("runOnboard", () => {
 		expect(existsSync(join(workspaceDir, "memory", "MEMORY.md"))).toBe(true);
 	});
 
-	it("selects OpenAI when user enters 2", async () => {
-		const { input, output } = createStreams(["2", "sk-openai-key"]);
+	it("auto-detects openai from sk- prefix", async () => {
+		// sk-openai-key → detected openai → confirm y → model 1 → no telegram → no whatsapp
+		const { input, output } = createStreams(["sk-openai-key", "y", "1", "n", "n"]);
 		const configDir = join(testDir, "config");
 		const workspaceDir = join(testDir, "workspace");
 
@@ -105,6 +108,42 @@ describe("runOnboard", () => {
 
 		const config = JSON.parse(readFileSync(join(configDir, "config.json"), "utf-8"));
 		expect(config.providers.openai.apiKey).toBe("sk-openai-key");
+	});
+
+	it("allows override when detection is wrong", async () => {
+		// sk-key → detected openai → reject (n) → choose anthropic (1) → model 1 → no tg → no wa
+		const { input, output } = createStreams(["sk-key", "n", "1", "1", "n", "n"]);
+		const configDir = join(testDir, "config");
+		const workspaceDir = join(testDir, "workspace");
+
+		await runOnboard({
+			configDir,
+			workspaceDir,
+			templateDir: resolve(process.cwd(), "..", "..", "workspace"),
+			input,
+			output,
+		});
+
+		const config = JSON.parse(readFileSync(join(configDir, "config.json"), "utf-8"));
+		expect(config.providers.anthropic.apiKey).toBe("sk-key");
+	});
+
+	it("falls back to provider menu for unrecognized key", async () => {
+		// unknown-key → no detection → choose openai (2) → model 1 → no tg → no wa
+		const { input, output } = createStreams(["unknown-key", "2", "1", "n", "n"]);
+		const configDir = join(testDir, "config");
+		const workspaceDir = join(testDir, "workspace");
+
+		await runOnboard({
+			configDir,
+			workspaceDir,
+			templateDir: resolve(process.cwd(), "..", "..", "workspace"),
+			input,
+			output,
+		});
+
+		const config = JSON.parse(readFileSync(join(configDir, "config.json"), "utf-8"));
+		expect(config.providers.openai.apiKey).toBe("unknown-key");
 	});
 
 	it("skips when user declines overwrite", async () => {
@@ -128,8 +167,64 @@ describe("runOnboard", () => {
 		expect(getOutput()).toContain("Setup cancelled");
 	});
 
+	it("sets model from user selection", async () => {
+		// sk-ant-key → confirm → model 2 (haiku) → no tg → no wa
+		const { input, output } = createStreams(["sk-ant-key", "y", "2", "n", "n"]);
+		const configDir = join(testDir, "config");
+		const workspaceDir = join(testDir, "workspace");
+
+		await runOnboard({
+			configDir,
+			workspaceDir,
+			templateDir: resolve(process.cwd(), "..", "..", "workspace"),
+			input,
+			output,
+		});
+
+		const config = JSON.parse(readFileSync(join(configDir, "config.json"), "utf-8"));
+		expect(config.agents.defaults.model).toContain("haiku");
+	});
+
+	it("enables telegram when user says yes", async () => {
+		// sk-ant-key → confirm → model 1 → yes telegram → token → no whatsapp
+		const { input, output } = createStreams(["sk-ant-key", "y", "1", "y", "123:ABC", "n"]);
+		const configDir = join(testDir, "config");
+		const workspaceDir = join(testDir, "workspace");
+
+		await runOnboard({
+			configDir,
+			workspaceDir,
+			templateDir: resolve(process.cwd(), "..", "..", "workspace"),
+			input,
+			output,
+		});
+
+		const config = JSON.parse(readFileSync(join(configDir, "config.json"), "utf-8"));
+		expect(config.channels.telegram.enabled).toBe(true);
+		expect(config.channels.telegram.token).toBe("123:ABC");
+	});
+
+	it("enables whatsapp and shows login reminder", async () => {
+		// sk-ant-key → confirm → model 1 → no telegram → yes whatsapp
+		const { input, output, getOutput } = createStreams(["sk-ant-key", "y", "1", "n", "y"]);
+		const configDir = join(testDir, "config");
+		const workspaceDir = join(testDir, "workspace");
+
+		await runOnboard({
+			configDir,
+			workspaceDir,
+			templateDir: resolve(process.cwd(), "..", "..", "workspace"),
+			input,
+			output,
+		});
+
+		const config = JSON.parse(readFileSync(join(configDir, "config.json"), "utf-8"));
+		expect(config.channels.whatsapp.enabled).toBe(true);
+		expect(getOutput()).toContain("featherbot whatsapp login");
+	});
+
 	it("prints success message with next steps", async () => {
-		const { input, output, getOutput } = createStreams(["1", "key"]);
+		const { input, output, getOutput } = createStreams(["sk-ant-key", "y", "1", "n", "n"]);
 
 		await runOnboard({
 			configDir: join(testDir, "config"),
@@ -141,7 +236,7 @@ describe("runOnboard", () => {
 
 		const out = getOutput();
 		expect(out).toContain("Setup complete!");
-		expect(out).toContain("featherbot agent");
+		expect(out).toContain("featherbot start");
 		expect(out).toContain("featherbot status");
 	});
 });

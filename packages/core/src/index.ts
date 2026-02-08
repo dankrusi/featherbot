@@ -31,6 +31,11 @@ export type {
 	WhatsAppConfig,
 } from "./config/schema.js";
 export { loadConfig } from "./config/loader.js";
+export { detectProvider, validateApiKeyFormat } from "./config/validate-key.js";
+export { MODEL_CHOICES } from "./config/model-choices.js";
+export type { ModelChoice } from "./config/model-choices.js";
+export { checkStartupConfig } from "./config/startup-check.js";
+export type { StartupCheckResult } from "./config/startup-check.js";
 export type {
 	InboundMessage,
 	LLMResponse,

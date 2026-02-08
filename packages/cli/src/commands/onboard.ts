@@ -3,7 +3,12 @@ import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import * as readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-import { FeatherBotConfigSchema } from "@featherbot/core";
+import {
+	FeatherBotConfigSchema,
+	MODEL_CHOICES,
+	detectProvider,
+	validateApiKeyFormat,
+} from "@featherbot/core";
 import type { Command } from "commander";
 
 const PROVIDERS = ["anthropic", "openai", "openrouter"] as const;
@@ -39,21 +44,83 @@ export async function runOnboard(options: OnboardOptions = {}): Promise<void> {
 			}
 		}
 
-		output.write("Choose your LLM provider:\n");
-		output.write("  1. Anthropic (default)\n");
-		output.write("  2. OpenAI\n");
-		output.write("  3. OpenRouter\n");
-		const providerAnswer = await rl.question("Provider [1]: ");
-		const providerIndex = Number.parseInt(providerAnswer.trim(), 10);
-		let provider: ProviderChoice = "anthropic";
-		if (providerIndex === 2) provider = "openai";
-		else if (providerIndex === 3) provider = "openrouter";
+		// Step 1: Ask for API key first (auto-detect provider from prefix)
+		const apiKey = await rl.question("Paste your API key: ");
+		const trimmedKey = apiKey.trim();
 
-		const apiKey = await rl.question(`Enter your ${provider} API key: `);
+		// Step 2: Auto-detect provider
+		const { provider: detected } = detectProvider(trimmedKey);
+		let provider: ProviderChoice;
 
+		if (detected) {
+			const confirm = await rl.question(`Detected ${detected} — correct? (Y/n) `);
+			if (confirm.trim().toLowerCase() === "n") {
+				provider = await askProvider(rl, output);
+			} else {
+				provider = detected;
+			}
+		} else {
+			output.write("Could not detect provider from key prefix.\n");
+			provider = await askProvider(rl, output);
+		}
+
+		// Step 3: Format validation
+		const validation = validateApiKeyFormat(provider, trimmedKey);
+		if (!validation.valid) {
+			output.write(`Warning: ${validation.error}\n`);
+		}
+
+		// Step 4: Choose model
+		const choices = MODEL_CHOICES[provider];
+		const defaultModel = {
+			id: choices[0]?.id ?? "",
+			label: choices[0]?.label ?? "",
+			description: "",
+		};
+		output.write("\nChoose a model:\n");
+		for (const [i, choice] of choices.entries()) {
+			output.write(`  ${i + 1}. ${choice.label} — ${choice.description}\n`);
+		}
+		const modelAnswer = await rl.question("Model [1]: ");
+		const modelIndex = Number.parseInt(modelAnswer.trim(), 10);
+		const selectedModel =
+			(modelIndex >= 1 && modelIndex <= choices.length ? choices[modelIndex - 1] : undefined) ??
+			defaultModel;
+
+		// Step 5: Telegram setup
+		let telegramEnabled = false;
+		let telegramToken = "";
+		const telegramAnswer = await rl.question("Enable Telegram? (y/N) ");
+		if (telegramAnswer.trim().toLowerCase() === "y") {
+			telegramEnabled = true;
+			telegramToken = (await rl.question("Telegram bot token: ")).trim();
+		}
+
+		// Step 6: WhatsApp setup
+		let whatsappEnabled = false;
+		const whatsappAnswer = await rl.question("Enable WhatsApp? (y/N) ");
+		if (whatsappAnswer.trim().toLowerCase() === "y") {
+			whatsappEnabled = true;
+		}
+
+		// Build config
 		const config = FeatherBotConfigSchema.parse({
 			providers: {
-				[provider]: { apiKey: apiKey.trim() },
+				[provider]: { apiKey: trimmedKey },
+			},
+			agents: {
+				defaults: {
+					model: selectedModel.id,
+				},
+			},
+			channels: {
+				telegram: {
+					enabled: telegramEnabled,
+					token: telegramToken,
+				},
+				whatsapp: {
+					enabled: whatsappEnabled,
+				},
 			},
 		});
 
@@ -65,13 +132,34 @@ export async function runOnboard(options: OnboardOptions = {}): Promise<void> {
 
 		output.write("\nSetup complete!\n\n");
 		output.write(`  Config:    ${configPath}\n`);
-		output.write(`  Workspace: ${workspaceDir}\n\n`);
+		output.write(`  Workspace: ${workspaceDir}\n`);
+		output.write(`  Provider:  ${provider}\n`);
+		output.write(`  Model:     ${selectedModel.label}\n\n`);
 		output.write("Next steps:\n");
-		output.write("  featherbot agent    Start chatting\n");
-		output.write("  featherbot status   Check your setup\n\n");
+		output.write("  featherbot start    Start the agent\n");
+		output.write("  featherbot status   Check your setup\n");
+		if (whatsappEnabled) {
+			output.write("  featherbot whatsapp login   Pair your WhatsApp device\n");
+		}
+		output.write("\n");
 	} finally {
 		rl.close();
 	}
+}
+
+async function askProvider(
+	rl: readline.Interface,
+	output: NodeJS.WritableStream,
+): Promise<ProviderChoice> {
+	output.write("Choose your LLM provider:\n");
+	output.write("  1. Anthropic\n");
+	output.write("  2. OpenAI\n");
+	output.write("  3. OpenRouter\n");
+	const answer = await rl.question("Provider [1]: ");
+	const index = Number.parseInt(answer.trim(), 10);
+	if (index === 2) return "openai";
+	if (index === 3) return "openrouter";
+	return "anthropic";
 }
 
 function resolveTemplateDir(): string {
