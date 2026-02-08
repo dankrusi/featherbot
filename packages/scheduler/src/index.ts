@@ -17,3 +17,6 @@ export type {
 export { CronJobStore } from "./store.js";
 export { CronService } from "./service.js";
 export type { CronServiceOptions } from "./service.js";
+export { HeartbeatService } from "./heartbeat-service.js";
+export type { HeartbeatServiceOptions } from "./heartbeat-service.js";
+export { buildHeartbeatPrompt } from "./heartbeat-prompt.js";
