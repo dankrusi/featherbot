@@ -1,6 +1,14 @@
-# FeatherBot
+<p align="center">
+  <img src="assets/featherbot.png" alt="FeatherBot" width="500" />
+</p>
 
-A personal AI agent framework built with TypeScript. Connects to messaging platforms (Telegram, WhatsApp) and provides an extensible tool/skill system powered by LLMs via the Vercel AI SDK.
+<h1 align="center">FeatherBot: Personal AI Agent Framework</h1>
+
+<p align="center">
+  A personal AI agent framework built with TypeScript. Connects to messaging platforms (Telegram, WhatsApp) and provides an extensible tool/skill system powered by LLMs via the Vercel AI SDK.
+</p>
+
+---
 
 ## Features
 
