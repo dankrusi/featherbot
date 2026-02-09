@@ -57,6 +57,14 @@ Configuration is saved to `~/.featherbot/config.json`.
 
 ## Commands
 
+After building, you can run commands via npm scripts (e.g. `pnpm start`), or install the CLI globally:
+
+```bash
+pnpm --filter @featherbot/cli link --global
+```
+
+This makes `featherbot` and `fb` available system-wide:
+
 | Command | Description |
 |---------|-------------|
 | `featherbot` / `fb` | Smart start — runs onboard if needed, then starts agent |
