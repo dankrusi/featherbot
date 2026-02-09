@@ -98,6 +98,7 @@ export type {
 } from "./tools/index.js";
 export {
 	AgentLoop,
+	buildSubagentResultPrompt,
 	buildToolMap,
 	ContextBuilder,
 	createAgentLoop,

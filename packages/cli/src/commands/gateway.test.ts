@@ -1,3 +1,4 @@
+import type { SubagentState } from "@featherbot/core";
 import { describe, expect, it, vi } from "vitest";
 
 const mockRegister = vi.fn();
@@ -8,10 +9,16 @@ const mockChannelManager = {
 	getChannels: vi.fn().mockReturnValue([]),
 };
 
+const mockProcessDirect = vi.fn().mockResolvedValue({ text: "" });
+const mockPublish = vi.fn().mockResolvedValue(undefined);
+
+// biome-ignore lint/suspicious/noExplicitAny: capture constructor args in test mock
+let capturedOnComplete: ((state: any) => Promise<void>) | undefined;
+
 vi.mock("@featherbot/bus", () => ({
 	MessageBus: vi.fn(() => ({
 		subscribe: vi.fn(),
-		publish: vi.fn(),
+		publish: mockPublish,
 		close: vi.fn(),
 	})),
 }));
@@ -34,7 +41,7 @@ vi.mock("@featherbot/core", () => ({
 	})),
 	checkStartupConfig: vi.fn(() => ({ ready: true, errors: [], warnings: [] })),
 	createAgentLoop: vi.fn(() => ({
-		processDirect: vi.fn().mockResolvedValue({ text: "" }),
+		processDirect: mockProcessDirect,
 		processMessage: vi.fn(),
 	})),
 	createMemoryStore: vi.fn(() => ({
@@ -53,10 +60,21 @@ vi.mock("@featherbot/core", () => ({
 		getAll: vi.fn().mockReturnValue([]),
 	})),
 	loadConfig: vi.fn(),
-	createOutboundMessage: vi.fn(),
+	createOutboundMessage: vi.fn((params: Record<string, unknown>) => params),
+	buildSubagentResultPrompt: vi.fn((state: SubagentState) => {
+		if (state.status === "completed") {
+			return `summarize: ${state.task} result: ${state.result}`;
+		}
+		return `explain error: ${state.task} error: ${state.error}`;
+	}),
 	CronTool: vi.fn(),
 	SpawnTool: vi.fn(),
-	SubagentManager: vi.fn(() => ({})),
+	SubagentManager: vi.fn(
+		(_provider: unknown, _config: unknown, onComplete: (state: SubagentState) => Promise<void>) => {
+			capturedOnComplete = onComplete;
+			return {};
+		},
+	),
 	SubagentStatusTool: vi.fn(),
 	RecallRecentTool: vi.fn(),
 	Transcriber: vi.fn(),
@@ -146,5 +164,141 @@ describe("createGateway headless mode", () => {
 		expect(registeredNames).not.toContain("terminal");
 
 		Object.defineProperty(process.stdin, "isTTY", { value: original, configurable: true });
+	});
+});
+
+describe("subagent result summarization", () => {
+	it("routes completed sub-agent results through processDirect for summarization", async () => {
+		mockProcessDirect.mockResolvedValueOnce({ text: "Here are the top 3 credit cards..." });
+		mockPublish.mockClear();
+
+		createGateway(makeConfig());
+		expect(capturedOnComplete).toBeDefined();
+
+		const state: SubagentState = {
+			id: "test-123",
+			task: "Research credit cards",
+			status: "completed",
+			result: "Raw research data here",
+			startedAt: new Date(),
+			completedAt: new Date(),
+			originChannel: "telegram",
+			originChatId: "user-456",
+		};
+
+		await capturedOnComplete?.(state);
+
+		expect(mockProcessDirect).toHaveBeenCalledWith(
+			expect.stringContaining("Research credit cards"),
+			{ sessionKey: "subagent-result:test-123" },
+		);
+
+		expect(mockPublish).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "message:outbound",
+				message: expect.objectContaining({
+					channel: "telegram",
+					chatId: "user-456",
+					content: "Here are the top 3 credit cards...",
+				}),
+			}),
+		);
+	});
+
+	it("routes failed sub-agent results through processDirect with error prompt", async () => {
+		mockProcessDirect.mockResolvedValueOnce({ text: "Sorry, I couldn't complete that task." });
+		mockPublish.mockClear();
+
+		createGateway(makeConfig());
+
+		const state: SubagentState = {
+			id: "test-789",
+			task: "Fetch weather data",
+			status: "failed",
+			error: "Network timeout",
+			startedAt: new Date(),
+			completedAt: new Date(),
+			originChannel: "whatsapp",
+			originChatId: "user-321",
+		};
+
+		await capturedOnComplete?.(state);
+
+		expect(mockProcessDirect).toHaveBeenCalledWith(expect.stringContaining("Fetch weather data"), {
+			sessionKey: "subagent-result:test-789",
+		});
+
+		expect(mockPublish).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "message:outbound",
+				message: expect.objectContaining({
+					channel: "whatsapp",
+					chatId: "user-321",
+					content: "Sorry, I couldn't complete that task.",
+				}),
+			}),
+		);
+	});
+
+	it("falls back to raw delivery when processDirect throws", async () => {
+		mockProcessDirect.mockRejectedValueOnce(new Error("LLM unavailable"));
+		mockPublish.mockClear();
+
+		createGateway(makeConfig());
+
+		const state: SubagentState = {
+			id: "test-fallback",
+			task: "Do something",
+			status: "completed",
+			result: "The raw result",
+			startedAt: new Date(),
+			completedAt: new Date(),
+			originChannel: "terminal",
+			originChatId: "cli",
+		};
+
+		await capturedOnComplete?.(state);
+
+		expect(mockPublish).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "message:outbound",
+				message: expect.objectContaining({
+					channel: "terminal",
+					chatId: "cli",
+					content: expect.stringContaining("The raw result"),
+				}),
+			}),
+		);
+	});
+
+	it("falls back to raw error delivery when processDirect throws on failed task", async () => {
+		mockProcessDirect.mockRejectedValueOnce(new Error("LLM unavailable"));
+		mockPublish.mockClear();
+
+		createGateway(makeConfig());
+
+		const state: SubagentState = {
+			id: "test-fallback-err",
+			task: "Broken task",
+			status: "failed",
+			error: "Something went wrong",
+			startedAt: new Date(),
+			completedAt: new Date(),
+			originChannel: "telegram",
+			originChatId: "user-999",
+		};
+
+		await capturedOnComplete?.(state);
+
+		expect(mockPublish).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "message:outbound",
+				message: expect.objectContaining({
+					channel: "telegram",
+					chatId: "user-999",
+					content: expect.stringContaining("Something went wrong"),
+				}),
+			}),
+		);
 	});
 });

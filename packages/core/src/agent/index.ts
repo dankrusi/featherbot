@@ -51,6 +51,7 @@ export type {
 	StepEvent,
 } from "./types.js";
 export { SubagentManager } from "./subagent.js";
+export { buildSubagentResultPrompt } from "./subagent-result-prompt.js";
 export type {
 	SpawnOptions,
 	SubagentState,

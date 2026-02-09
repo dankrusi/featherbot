@@ -18,6 +18,7 @@ import {
 	SubagentManager,
 	SubagentStatusTool,
 	Transcriber,
+	buildSubagentResultPrompt,
 	checkStartupConfig,
 	createAgentLoop,
 	createMemoryStore,
@@ -73,10 +74,19 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 	const originContext: SpawnToolOriginContext = { channel: "", chatId: "" };
 	const provider = createProvider(config);
 	const subagentManager = new SubagentManager(provider, config, async (state) => {
-		const content =
-			state.status === "completed"
-				? `Background task completed:\nTask: ${state.task}\nResult: ${state.result}`
-				: `Background task failed:\nTask: ${state.task}\nError: ${state.error}`;
+		let content: string;
+		try {
+			const prompt = buildSubagentResultPrompt(state);
+			const result = await agentLoop.processDirect(prompt, {
+				sessionKey: `subagent-result:${state.id}`,
+			});
+			content = result.text || `Background task ${state.status}: ${state.task}`;
+		} catch {
+			content =
+				state.status === "completed"
+					? `Background task completed:\nTask: ${state.task}\nResult: ${state.result}`
+					: `Background task failed:\nTask: ${state.task}\nError: ${state.error}`;
+		}
 		await bus.publish({
 			type: "message:outbound",
 			message: createOutboundMessage({

@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-export const DEFAULT_BOOTSTRAP_FILES = [
-	"AGENTS.md",
-	"SOUL.md",
-	"USER.md",
-	"TOOLS.md",
-];
+export const DEFAULT_BOOTSTRAP_FILES = ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md"];
 
 export const AgentConfigSchema = z.object({
 	workspace: z.string().default("~/.featherbot/workspace"),
