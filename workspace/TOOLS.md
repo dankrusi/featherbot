@@ -59,6 +59,14 @@ Remove a job: `cron({ action: "remove", jobId: "the-job-id" })`
 
 **Important:** To create a job you MUST use `action: "add"`. Listing does not create anything.
 
+## recall_recent
+
+Retrieve daily notes from recent days. Use this to recall what happened in past sessions.
+
+Example: `recall_recent({ days: 7 })`
+
+The `days` parameter is optional (default 7, max 30).
+
 ## web_search
 
 Search the web using Brave Search API. Returns titles, URLs, descriptions.

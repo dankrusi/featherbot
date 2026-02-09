@@ -463,6 +463,22 @@ describe("ContextBuilder", () => {
 			expect(systemPrompt).toContain("edit_file");
 			expect(systemPrompt).toContain("Do NOT log every message");
 		});
+
+		it("contains daily note rollup instructions", async () => {
+			const builder = new ContextBuilder({
+				...defaultOptions,
+				memoryStore: {
+					getMemoryContext: async () => "Some memory",
+					getRecentMemories: async () => "",
+					getMemoryFilePath: () => "",
+					getDailyNotePath: () => "",
+				},
+			});
+			const { systemPrompt } = await builder.build();
+			expect(systemPrompt).toContain("### Daily Note Rollup");
+			expect(systemPrompt).toContain("Yesterday's Notes");
+			expect(systemPrompt).toContain("recall_recent");
+		});
 	});
 
 	describe("first conversation detection", () => {

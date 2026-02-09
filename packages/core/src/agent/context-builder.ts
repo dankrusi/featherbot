@@ -135,6 +135,14 @@ export class ContextBuilder {
 			"- Update existing entries rather than duplicating them.",
 			"- Remove Pending items once they are resolved.",
 			"- For daily context (today's tasks, current mood, etc.), use a daily note at memory/YYYY-MM-DD.md instead.",
+			"",
+			"### Daily Note Rollup",
+			'If you see a "Yesterday\'s Notes" section in Memory above, process it on your FIRST response:',
+			"1. Read yesterday's notes and identify anything worth keeping long-term.",
+			"2. Promote important items into the appropriate MEMORY.md section (Facts, Patterns, or Pending).",
+			"3. Delete the yesterday file using write_file with empty content, or leave it if nothing was worth promoting.",
+			"4. Do this silently — no need to announce it to the user.",
+			"5. Use the recall_recent tool if you need more historical context beyond yesterday.",
 		];
 		return lines.join("\n");
 	}

@@ -2,7 +2,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { MemoryStore } from "./types.js";
 
-function formatDate(date: Date): string {
+/** Approximate token threshold (~2000 tokens ≈ 8000 chars). */
+const MEMORY_SIZE_WARNING_CHARS = 8000;
+
+export function formatDate(date: Date): string {
 	return date.toISOString().slice(0, 10);
 }
 
@@ -29,7 +32,22 @@ export class FileMemoryStore implements MemoryStore {
 		const sections: string[] = [];
 		if (memory) {
 			sections.push(`## Long-term Memory\n${memory}`);
+			if (memory.length > MEMORY_SIZE_WARNING_CHARS) {
+				sections.push(
+					`**Warning: MEMORY.md is large (~${Math.round(memory.length / 4)} tokens). Review and consolidate — remove stale facts, merge duplicates, and archive resolved Pending items to keep context efficient.**`,
+				);
+			}
 		}
+
+		// Include yesterday's unprocessed notes so the agent can roll them up
+		const yesterday = new Date();
+		yesterday.setDate(yesterday.getDate() - 1);
+		const yesterdayContent = (await this.readFileSafe(this.getDailyNotePath(yesterday))).trim();
+		if (yesterdayContent) {
+			const yDateStr = formatDate(yesterday);
+			sections.push(`## Yesterday's Notes (${yDateStr})\n${yesterdayContent}`);
+		}
+
 		if (daily) {
 			const dateStr = formatDate(new Date());
 			sections.push(`## Today's Notes (${dateStr})\n${daily}`);

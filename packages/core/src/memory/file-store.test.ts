@@ -37,22 +37,27 @@ describe("FileMemoryStore", () => {
 	});
 
 	describe("getMemoryContext", () => {
+		function yesterdayStr(): string {
+			const d = new Date();
+			d.setDate(d.getDate() - 1);
+			return d.toISOString().slice(0, 10);
+		}
+
 		it("returns both sections when both files exist", async () => {
 			await writeFile(join(tempDir, "memory", "MEMORY.md"), "long-term stuff");
 			const today = new Date().toISOString().slice(0, 10);
 			await writeFile(join(tempDir, "memory", `${today}.md`), "daily stuff");
 
 			const result = await store.getMemoryContext();
-			expect(result).toBe(
-				`## Long-term Memory\nlong-term stuff\n\n## Today's Notes (${today})\ndaily stuff`,
-			);
+			expect(result).toContain("## Long-term Memory\nlong-term stuff");
+			expect(result).toContain(`## Today's Notes (${today})\ndaily stuff`);
 		});
 
 		it("returns only memory section when daily note is missing", async () => {
 			await writeFile(join(tempDir, "memory", "MEMORY.md"), "long-term stuff");
 
 			const result = await store.getMemoryContext();
-			expect(result).toBe("## Long-term Memory\nlong-term stuff");
+			expect(result).toContain("## Long-term Memory\nlong-term stuff");
 		});
 
 		it("returns only daily section when MEMORY.md is missing", async () => {
@@ -60,7 +65,7 @@ describe("FileMemoryStore", () => {
 			await writeFile(join(tempDir, "memory", `${today}.md`), "daily stuff");
 
 			const result = await store.getMemoryContext();
-			expect(result).toBe(`## Today's Notes (${today})\ndaily stuff`);
+			expect(result).toContain(`## Today's Notes (${today})\ndaily stuff`);
 		});
 
 		it("returns empty string when both files are missing", async () => {
@@ -72,6 +77,56 @@ describe("FileMemoryStore", () => {
 			await writeFile(join(tempDir, "memory", "MEMORY.md"), "   \n  ");
 			const result = await store.getMemoryContext();
 			expect(result).toBe("");
+		});
+
+		it("includes size warning when MEMORY.md exceeds threshold", async () => {
+			const largeContent = "x".repeat(9000);
+			await writeFile(join(tempDir, "memory", "MEMORY.md"), largeContent);
+
+			const result = await store.getMemoryContext();
+			expect(result).toContain("**Warning: MEMORY.md is large");
+			expect(result).toContain("consolidate");
+		});
+
+		it("does not include size warning when MEMORY.md is small", async () => {
+			await writeFile(join(tempDir, "memory", "MEMORY.md"), "small content");
+
+			const result = await store.getMemoryContext();
+			expect(result).not.toContain("Warning");
+		});
+
+		it("includes yesterday's notes when present", async () => {
+			const yStr = yesterdayStr();
+			await writeFile(join(tempDir, "memory", `${yStr}.md`), "yesterday stuff");
+
+			const result = await store.getMemoryContext();
+			expect(result).toContain(`## Yesterday's Notes (${yStr})`);
+			expect(result).toContain("yesterday stuff");
+		});
+
+		it("omits yesterday section when no yesterday file", async () => {
+			await writeFile(join(tempDir, "memory", "MEMORY.md"), "long-term");
+
+			const result = await store.getMemoryContext();
+			expect(result).not.toContain("Yesterday's Notes");
+		});
+
+		it("orders sections: long-term, warning, yesterday, today", async () => {
+			const largeContent = "x".repeat(9000);
+			await writeFile(join(tempDir, "memory", "MEMORY.md"), largeContent);
+			const today = new Date().toISOString().slice(0, 10);
+			await writeFile(join(tempDir, "memory", `${today}.md`), "today");
+			const yStr = yesterdayStr();
+			await writeFile(join(tempDir, "memory", `${yStr}.md`), "yesterday");
+
+			const result = await store.getMemoryContext();
+			const longTermIdx = result.indexOf("## Long-term Memory");
+			const warningIdx = result.indexOf("**Warning:");
+			const yesterdayIdx = result.indexOf("## Yesterday's Notes");
+			const todayIdx = result.indexOf("## Today's Notes");
+			expect(longTermIdx).toBeLessThan(warningIdx);
+			expect(warningIdx).toBeLessThan(yesterdayIdx);
+			expect(yesterdayIdx).toBeLessThan(todayIdx);
 		});
 	});
 

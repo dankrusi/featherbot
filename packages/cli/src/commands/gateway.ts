@@ -13,6 +13,7 @@ import {
 import {
 	CronTool,
 	Gateway,
+	RecallRecentTool,
 	SpawnTool,
 	SubagentManager,
 	SubagentStatusTool,
@@ -105,6 +106,7 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 	}
 
 	const memoryStore = createMemoryStore(workspace);
+	toolRegistry.register(new RecallRecentTool({ memoryStore }));
 	const skillsLoader = createSkillsLoader({ workspacePath: workspace });
 
 	const agentLoop = createAgentLoop(config, {

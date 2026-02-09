@@ -58,7 +58,9 @@ vi.mock("@featherbot/core", () => ({
 	SpawnTool: vi.fn(),
 	SubagentManager: vi.fn(() => ({})),
 	SubagentStatusTool: vi.fn(),
+	RecallRecentTool: vi.fn(),
 	Transcriber: vi.fn(),
+	parseTimezoneFromUserMd: vi.fn(() => null),
 }));
 
 vi.mock("@featherbot/scheduler", () => ({

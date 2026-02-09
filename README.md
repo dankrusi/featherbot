@@ -17,7 +17,7 @@
 - **Tool system** — File I/O, shell execution, web search/fetch, cron scheduling, sub-agent spawning
 - **Skills** — Markdown-driven plugins with two-tier loading (always-on + lazy-loaded)
 - **Sub-agents** — Spawn background tasks with isolated tool sets and timeouts
-- **Memory** — Persistent file-based memory (long-term + daily notes)
+- **Memory** — Persistent file-based memory with daily note rollup and size-aware context management
 - **Session management** — SQLite-backed conversation history with message trimming
 - **Cron & heartbeat** — Scheduled tasks, one-time reminders, and periodic self-reflection
 - **Voice transcription** — Groq or OpenAI Whisper for voice messages in Telegram/WhatsApp
@@ -113,6 +113,7 @@ Direct Baileys integration (no external bridge). Supports all message types, aut
 | `web_search` | Search the web via Brave Search API |
 | `web_fetch` | Fetch and extract readable content from URLs |
 | `cron` | Manage scheduled tasks (add/list/remove/enable/disable) |
+| `recall_recent` | Retrieve past daily notes (last N days) on demand |
 | `spawn` | Spawn sub-agents for background tasks |
 
 All tools return strings and never throw errors to the LLM.
@@ -150,12 +151,20 @@ Spawn background tasks with isolated tool sets (no message, spawn, or cron tools
 
 ## Memory
 
-File-based storage in the workspace directory:
+File-based storage in `workspace/memory/`, managed by the agent via file tools:
 
-- `memory/MEMORY.md` — Long-term persistent memory
-- `memory/YYYY-MM-DD.md` — Daily notes (auto-created)
+| File | Purpose |
+|------|---------|
+| `MEMORY.md` | Long-term memory (Facts, Observed Patterns, Pending) |
+| `YYYY-MM-DD.md` | Daily notes (transient, per-day context) |
 
-No vector store or embeddings — simple markdown files managed by the agent via file tools.
+**Daily note rollup** — Yesterday's notes are surfaced automatically. The agent promotes important items into long-term memory and discards the rest, so daily notes don't rot.
+
+**Size guard** — When MEMORY.md grows large (~2000+ tokens), the agent is nudged to consolidate and prune stale entries.
+
+**On-demand recall** — The `recall_recent` tool lets the agent pull past daily notes (up to 30 days) without bloating every prompt.
+
+No vector store or embeddings — just markdown files with a lifecycle.
 
 ## Cron & Heartbeat
 
@@ -238,7 +247,7 @@ Edit these files to customize your agent's personality, behavior, and proactive 
 ```bash
 pnpm install          # Install dependencies
 pnpm build            # Build all packages
-pnpm test             # Run all tests (653 tests)
+pnpm test             # Run all tests (666 tests)
 pnpm typecheck        # Type checking
 pnpm lint             # Lint with Biome
 ```

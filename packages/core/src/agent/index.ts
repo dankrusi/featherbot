@@ -19,7 +19,8 @@ export function createAgentLoop(
 	},
 ): AgentLoop {
 	const provider = createProvider(config);
-	const toolRegistry = options?.toolRegistry ?? createToolRegistry(config);
+	const toolRegistry =
+		options?.toolRegistry ?? createToolRegistry(config, { memoryStore: options?.memoryStore });
 	return new AgentLoop({
 		provider,
 		toolRegistry,

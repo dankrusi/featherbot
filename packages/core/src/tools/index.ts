@@ -1,14 +1,23 @@
 import type { FeatherBotConfig } from "../config/schema.js";
+import type { MemoryStore } from "../memory/types.js";
 import { EditFileTool } from "./edit-file-tool.js";
 import { ExecTool } from "./exec-tool.js";
 import { ListDirTool } from "./list-dir-tool.js";
 import { ReadFileTool } from "./read-file-tool.js";
+import { RecallRecentTool } from "./recall-recent-tool.js";
 import { ToolRegistry } from "./registry.js";
 import { WebFetchTool } from "./web-fetch-tool.js";
 import { WebSearchTool } from "./web-search-tool.js";
 import { WriteFileTool } from "./write-file-tool.js";
 
-export function createToolRegistry(config: FeatherBotConfig): ToolRegistry {
+export interface CreateToolRegistryOptions {
+	memoryStore?: MemoryStore;
+}
+
+export function createToolRegistry(
+	config: FeatherBotConfig,
+	options?: CreateToolRegistryOptions,
+): ToolRegistry {
 	const workspaceDir = config.agents.defaults.workspace;
 	const restrictToWorkspace = config.tools.restrictToWorkspace;
 
@@ -38,6 +47,10 @@ export function createToolRegistry(config: FeatherBotConfig): ToolRegistry {
 		}),
 	);
 
+	if (options?.memoryStore) {
+		registry.register(new RecallRecentTool({ memoryStore: options.memoryStore }));
+	}
+
 	return registry;
 }
 
@@ -54,6 +67,8 @@ export { isWithinWorkspace, resolvePath, validatePath } from "./path-utils.js";
 export type { PathValidationResult } from "./path-utils.js";
 export { ReadFileTool } from "./read-file-tool.js";
 export type { ReadFileToolOptions } from "./read-file-tool.js";
+export { RecallRecentTool } from "./recall-recent-tool.js";
+export type { RecallRecentToolOptions } from "./recall-recent-tool.js";
 export { ToolRegistry } from "./registry.js";
 export type { ToolRegistryDefinition } from "./registry.js";
 export type { Tool, ToolExecutionResult } from "./types.js";
