@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initDatabase } from "./database.js";
 
@@ -98,5 +99,55 @@ describe("initDatabase", () => {
 
 		expect(indexNames).toContain("idx_messages_session_created");
 		db.close();
+	});
+
+	it("migrates from v0 to v1 on a pre-existing database", () => {
+		const dbPath = join(tempDir, "test.db");
+
+		// Simulate an old database with only _meta at version 0
+		const raw = new Database(dbPath);
+		raw.pragma("journal_mode = WAL");
+		raw.exec(`
+			CREATE TABLE _meta (schema_version INTEGER NOT NULL);
+			INSERT INTO _meta (schema_version) VALUES (0);
+		`);
+		raw.close();
+
+		// initDatabase should run migration v0→v1
+		const db = initDatabase(dbPath);
+
+		const tables = db
+			.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+			.all() as { name: string }[];
+		const tableNames = tables.map((t) => t.name);
+		expect(tableNames).toContain("sessions");
+		expect(tableNames).toContain("messages");
+
+		const row = db.prepare("SELECT schema_version FROM _meta").get() as {
+			schema_version: number;
+		};
+		expect(row.schema_version).toBe(1);
+		db.close();
+	});
+
+	it("skips migration when already at current version", () => {
+		const dbPath = join(tempDir, "test.db");
+
+		// First init creates everything at v1
+		const db1 = initDatabase(dbPath);
+		db1.close();
+
+		// Second init should not error and version stays at 1
+		const db2 = initDatabase(dbPath);
+		const row = db2.prepare("SELECT schema_version FROM _meta").get() as {
+			schema_version: number;
+		};
+		expect(row.schema_version).toBe(1);
+
+		const rows = db2.prepare("SELECT schema_version FROM _meta").all() as {
+			schema_version: number;
+		}[];
+		expect(rows).toHaveLength(1);
+		db2.close();
 	});
 });
