@@ -44,9 +44,6 @@ importers:
       grammy:
         specifier: ^1.39.3
         version: 1.39.3
-      qrcode-terminal:
-        specifier: ^0.12.0
-        version: 0.12.0
     devDependencies:
       vitest:
         specifier: ^3.0.4
@@ -1247,10 +1244,6 @@ packages:
   qified@0.6.0:
     resolution: {integrity: sha512-tsSGN1x3h569ZSU1u6diwhltLyfUWDp3YbFHedapTmpBl0B3P6U3+Qptg7xu+v+1io1EwhdPyyRHYbEw0KN2FA==}
     engines: {node: '>=20'}
-
-  qrcode-terminal@0.12.0:
-    resolution: {integrity: sha512-EXtzRZmC+YGmGlDFbXKxQiMZNwCLEO6BANKXG4iCtSIM0yqc/pappSx3RIKr4r0uh5JsBckOXeKrB3Iz7mdQpQ==}
-    hasBin: true
 
   quick-format-unescaped@4.0.4:
     resolution: {integrity: sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg==}
@@ -2551,8 +2544,6 @@ snapshots:
   qified@0.6.0:
     dependencies:
       hookified: 1.15.1
-
-  qrcode-terminal@0.12.0: {}
 
   quick-format-unescaped@4.0.4: {}
 
