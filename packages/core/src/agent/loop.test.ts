@@ -21,7 +21,7 @@ function makeConfig(overrides?: Partial<AgentConfig>): AgentConfig {
 		maxTokens: 8192,
 		temperature: 0.7,
 		maxToolIterations: 20,
-		bootstrapFiles: ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md", "IDENTITY.md"],
+		bootstrapFiles: ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md"],
 		...overrides,
 	};
 }

@@ -31,7 +31,6 @@ describe("loadConfig", () => {
 			"SOUL.md",
 			"USER.md",
 			"TOOLS.md",
-			"IDENTITY.md",
 		]);
 		expect(config.channels.telegram.enabled).toBe(false);
 		expect(config.providers.anthropic.apiKey).toBe("");

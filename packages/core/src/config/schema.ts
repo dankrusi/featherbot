@@ -5,7 +5,6 @@ export const DEFAULT_BOOTSTRAP_FILES = [
 	"SOUL.md",
 	"USER.md",
 	"TOOLS.md",
-	"IDENTITY.md",
 ];
 
 export const AgentConfigSchema = z.object({
