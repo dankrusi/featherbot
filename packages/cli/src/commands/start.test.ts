@@ -105,4 +105,64 @@ describe("runStart", () => {
 
 		expect(mocks.runOnboard).not.toHaveBeenCalled();
 	});
+
+	it("runs gateway when telegram channel is enabled", async () => {
+		const { loadConfig } = await import("@featherbot/core");
+		vi.mocked(loadConfig).mockReturnValueOnce({
+			agents: {
+				defaults: {
+					workspace: "~/.featherbot/workspace",
+					model: "anthropic/claude-sonnet-4-5-20250929",
+					maxTokens: 8192,
+					temperature: 0.7,
+					maxToolIterations: 20,
+					bootstrapFiles: [],
+				},
+			},
+			channels: {
+				telegram: { enabled: true, token: "test-token", allowFrom: [] },
+				whatsapp: { enabled: false, allowFrom: [], authDir: "~/.featherbot/whatsapp-auth" },
+				discord: { enabled: false, token: "" },
+			},
+			providers: {
+				anthropic: { apiKey: "sk-ant-test" },
+				openai: { apiKey: "" },
+				openrouter: { apiKey: "" },
+			},
+			tools: {
+				web: {
+					search: { apiKey: "", maxResults: 5 },
+					fetch: { maxContentLength: 50000, timeoutMs: 30000 },
+				},
+				exec: { timeout: 60 },
+				restrictToWorkspace: false,
+			},
+			session: { dbPath: "", maxMessages: 50 },
+			cron: { enabled: false, storePath: "" },
+			heartbeat: {
+				enabled: false,
+				intervalMs: 600000,
+				heartbeatFile: "HEARTBEAT.md",
+				notifyChannel: undefined,
+				notifyChatId: undefined,
+			},
+			memory: { extractionEnabled: true, extractionIdleMs: 300000 },
+			subagent: { maxIterations: 15, timeoutMs: 300000 },
+			transcription: {
+				enabled: false,
+				provider: "groq" as const,
+				apiKey: "",
+				model: "",
+				maxDurationSeconds: 120,
+			},
+		});
+
+		mocks.runGateway.mockClear();
+		mocks.runRepl.mockClear();
+
+		await runStart();
+
+		expect(mocks.runGateway).toHaveBeenCalled();
+		expect(mocks.runRepl).not.toHaveBeenCalled();
+	});
 });

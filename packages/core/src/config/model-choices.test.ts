@@ -2,45 +2,47 @@ import { describe, expect, it } from "vitest";
 import { MODEL_CHOICES } from "./model-choices.js";
 
 describe("MODEL_CHOICES", () => {
-	it("has entries for all three providers", () => {
-		expect(MODEL_CHOICES).toHaveProperty("anthropic");
-		expect(MODEL_CHOICES).toHaveProperty("openai");
-		expect(MODEL_CHOICES).toHaveProperty("openrouter");
-	});
-
-	it("each provider has at least one model choice", () => {
-		for (const provider of ["anthropic", "openai", "openrouter"] as const) {
-			expect(MODEL_CHOICES[provider].length).toBeGreaterThanOrEqual(1);
-		}
-	});
-
-	it("each choice has id, label, and description", () => {
-		for (const provider of ["anthropic", "openai", "openrouter"] as const) {
-			for (const choice of MODEL_CHOICES[provider]) {
-				expect(choice.id).toBeTruthy();
-				expect(choice.label).toBeTruthy();
-				expect(choice.description).toBeTruthy();
-			}
-		}
-	});
-
-	it("anthropic default is Claude Sonnet 4.5", () => {
+	it("anthropic default is Claude Sonnet 4.5 with correct model ID", () => {
 		const first = MODEL_CHOICES.anthropic[0];
-		expect(first?.label).toContain("Claude Sonnet");
-		expect(first?.id).toContain("claude-sonnet");
+		expect(first).toEqual({
+			id: "anthropic/claude-sonnet-4-5-20250929",
+			label: "Claude Sonnet 4.5",
+			description: "Best balance of speed and intelligence (default)",
+		});
 	});
 
-	it("openai default is GPT-4o", () => {
+	it("openai default is GPT-4o with correct model ID", () => {
 		const first = MODEL_CHOICES.openai[0];
-		expect(first?.label).toContain("GPT-4o");
-		expect(first?.id).toContain("gpt-4o");
+		expect(first).toEqual({
+			id: "openai/gpt-4o",
+			label: "GPT-4o",
+			description: "Most capable OpenAI model (default)",
+		});
 	});
 
-	it("model IDs use provider/model format", () => {
-		for (const provider of ["anthropic", "openai"] as const) {
-			for (const choice of MODEL_CHOICES[provider]) {
-				expect(choice.id).toContain("/");
+	it("openrouter default routes through correct provider prefix", () => {
+		const first = MODEL_CHOICES.openrouter[0];
+		expect(first?.id).toBe("openrouter/anthropic/claude-sonnet-4.5");
+	});
+
+	it("all model IDs use provider/model format matching their provider key", () => {
+		for (const [provider, choices] of Object.entries(MODEL_CHOICES)) {
+			for (const choice of choices) {
+				expect(choice.id).toMatch(new RegExp(`^${provider}/`));
 			}
+		}
+	});
+
+	it("no duplicate model IDs across all providers", () => {
+		const allIds = Object.values(MODEL_CHOICES)
+			.flat()
+			.map((c) => c.id);
+		expect(new Set(allIds).size).toBe(allIds.length);
+	});
+
+	it("each provider has at least 2 choices for selection UI", () => {
+		for (const [provider, choices] of Object.entries(MODEL_CHOICES)) {
+			expect(choices.length, `${provider} should have >= 2 choices`).toBeGreaterThanOrEqual(2);
 		}
 	});
 });

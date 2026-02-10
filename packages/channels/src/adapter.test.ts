@@ -4,6 +4,7 @@ import type { AgentLoopResult } from "@featherbot/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentProcessor } from "./adapter.js";
 import { BusAdapter } from "./adapter.js";
+import { BATCHED_FINISH_REASON } from "./session-queue.js";
 
 function makeMockAgent(result: Partial<AgentLoopResult> = {}): AgentProcessor {
 	return {
@@ -88,6 +89,122 @@ describe("BusAdapter", () => {
 		expect(outboundEvents[0]?.message.content).toBe("Error: LLM failed");
 		expect(outboundEvents[0]?.message.channel).toBe("telegram");
 		expect(outboundEvents[0]?.message.metadata).toEqual({ error: true });
+
+		adapter.stop();
+	});
+
+	it("suppresses outbound when agent returns BATCHED_FINISH_REASON", async () => {
+		bus = new MessageBus();
+		const agent = makeMockAgent({ finishReason: BATCHED_FINISH_REASON });
+		const adapter = new BusAdapter({ bus, agentLoop: agent });
+		adapter.start();
+
+		const outboundEvents: OutboundMessageEvent[] = [];
+		bus.subscribe("message:outbound", (event) => {
+			outboundEvents.push(event);
+		});
+
+		const inbound = createInboundMessage({
+			channel: "terminal",
+			senderId: "user-1",
+			chatId: "chat-1",
+			content: "batched msg",
+			media: [],
+			metadata: {},
+		});
+
+		await bus.publish({ type: "message:inbound", message: inbound, timestamp: new Date() });
+
+		expect(agent.processMessage).toHaveBeenCalledOnce();
+		expect(outboundEvents).toHaveLength(0);
+
+		adapter.stop();
+	});
+
+	it("preserves inReplyToMessageId from inbound message", async () => {
+		bus = new MessageBus();
+		const agent = makeMockAgent({ text: "reply" });
+		const adapter = new BusAdapter({ bus, agentLoop: agent });
+		adapter.start();
+
+		const outboundEvents: OutboundMessageEvent[] = [];
+		bus.subscribe("message:outbound", (event) => {
+			outboundEvents.push(event);
+		});
+
+		const inbound = createInboundMessage({
+			channel: "telegram",
+			senderId: "user-1",
+			chatId: "chat-1",
+			content: "hello",
+			media: [],
+			metadata: {},
+		});
+
+		await bus.publish({ type: "message:inbound", message: inbound, timestamp: new Date() });
+
+		expect(outboundEvents[0]?.message.inReplyToMessageId).toBe(inbound.messageId);
+		expect(outboundEvents[0]?.message.channel).toBe("telegram");
+
+		adapter.stop();
+	});
+
+	it("includes error metadata in fallback message", async () => {
+		bus = new MessageBus();
+		const agent: AgentProcessor = {
+			processMessage: vi.fn().mockRejectedValue(new Error("timeout")),
+		};
+		const adapter = new BusAdapter({ bus, agentLoop: agent });
+		adapter.start();
+
+		const outboundEvents: OutboundMessageEvent[] = [];
+		bus.subscribe("message:outbound", (event) => {
+			outboundEvents.push(event);
+		});
+
+		const inbound = createInboundMessage({
+			channel: "terminal",
+			senderId: "user-1",
+			chatId: "chat-1",
+			content: "hi",
+			media: [],
+			metadata: {},
+		});
+
+		await bus.publish({ type: "message:inbound", message: inbound, timestamp: new Date() });
+
+		expect(outboundEvents[0]?.message.content).toBe("Error: timeout");
+		expect(outboundEvents[0]?.message.metadata).toEqual({ error: true });
+		expect(outboundEvents[0]?.message.inReplyToMessageId).toBe(inbound.messageId);
+
+		adapter.stop();
+	});
+
+	it("handles non-Error throws gracefully", async () => {
+		bus = new MessageBus();
+		const agent: AgentProcessor = {
+			processMessage: vi.fn().mockRejectedValue("string error"),
+		};
+		const adapter = new BusAdapter({ bus, agentLoop: agent });
+		adapter.start();
+
+		const outboundEvents: OutboundMessageEvent[] = [];
+		bus.subscribe("message:outbound", (event) => {
+			outboundEvents.push(event);
+		});
+
+		const inbound = createInboundMessage({
+			channel: "terminal",
+			senderId: "user-1",
+			chatId: "chat-1",
+			content: "hi",
+			media: [],
+			metadata: {},
+		});
+
+		await bus.publish({ type: "message:inbound", message: inbound, timestamp: new Date() });
+
+		expect(outboundEvents[0]?.message.content).toBe("Error: string error");
 
 		adapter.stop();
 	});
