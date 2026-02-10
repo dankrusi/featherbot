@@ -46,9 +46,16 @@ Example format:
 - 🔴 ACTION: deploy staging build before Friday
 \`\`\`
 
-## Step 2 — Long-term Memory
+## Step 2 — Long-term Memory (REQUIRED)
 
-After writing observations, update memory/MEMORY.md with any NEW facts, preferences, or pending items not already present — same as before.
+After writing the daily note, you MUST also update memory/MEMORY.md:
+1. Use read_file to read the current memory/MEMORY.md.
+2. Check if ANY of these are new (not already in the file):
+   - Personal details, projects, hobbies, interests → add to **Facts**
+   - Recurring behaviors or preferences → add to **Observed Patterns**
+   - Follow-ups, deadlines, things to circle back on → add to **Pending**
+3. If there are new items, use edit_file to add them to the appropriate section.
+4. Do NOT skip this step — the daily note is temporary, MEMORY.md is permanent.
 
 ## Step 3 — Duplicate Detection
 
