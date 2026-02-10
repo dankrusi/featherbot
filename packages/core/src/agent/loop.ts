@@ -42,6 +42,11 @@ export class AgentLoop {
 		}
 	}
 
+	getHistory(sessionKey: SessionKey): LLMMessage[] {
+		const history = this.sessions.get(sessionKey);
+		return history ? history.getMessages() : [];
+	}
+
 	async processMessage(inbound: InboundMessage): Promise<AgentLoopResult> {
 		const sessionKey: SessionKey = `${inbound.channel}:${inbound.chatId}`;
 		const sessionContext: SessionContext = {

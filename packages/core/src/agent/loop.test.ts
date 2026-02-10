@@ -57,6 +57,9 @@ function makeMockProvider(generateFn?: GenerateFn): LLMProvider {
 		stream: async () => {
 			throw new Error("stream not implemented");
 		},
+		generateStructured: async () => {
+			throw new Error("generateStructured not implemented");
+		},
 	};
 }
 
@@ -603,6 +606,12 @@ describe("AgentLoop", () => {
 				getRecentMemories: async () => "",
 				getMemoryFilePath: () => "",
 				getDailyNotePath: () => "",
+				readMemoryFile: async () => "",
+				writeMemoryFile: async () => {},
+				readDailyNote: async () => "",
+				writeDailyNote: async () => {},
+				deleteDailyNote: async () => {},
+				listDailyNotes: async () => [] as string[],
 			};
 
 			const loop = new AgentLoop({

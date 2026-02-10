@@ -29,5 +29,5 @@ export interface GatewayOptions {
 	channelManager: GatewayChannelManager;
 	cronService?: GatewayCronService;
 	heartbeatService?: GatewayHeartbeatService;
-	onStop?: () => void;
+	onStop?: () => void | Promise<void>;
 }

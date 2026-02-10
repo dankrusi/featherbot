@@ -19,6 +19,8 @@ export type { RetryOptions } from "./retry.js";
 export type {
 	GenerateOptions,
 	GenerateResult,
+	GenerateStructuredOptions,
+	GenerateStructuredResult,
 	LLMMessage,
 	LLMProvider,
 	StreamOptions,

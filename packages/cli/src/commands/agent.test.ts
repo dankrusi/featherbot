@@ -6,6 +6,12 @@ vi.mock("@featherbot/core", () => ({
 		getRecentMemories: vi.fn().mockResolvedValue(""),
 		getMemoryFilePath: vi.fn().mockReturnValue(""),
 		getDailyNotePath: vi.fn().mockReturnValue(""),
+		readMemoryFile: vi.fn().mockResolvedValue(""),
+		writeMemoryFile: vi.fn().mockResolvedValue(undefined),
+		readDailyNote: vi.fn().mockResolvedValue(""),
+		writeDailyNote: vi.fn().mockResolvedValue(undefined),
+		deleteDailyNote: vi.fn().mockResolvedValue(undefined),
+		listDailyNotes: vi.fn().mockResolvedValue([]),
 	})),
 	createSkillsLoader: vi.fn(() => ({
 		getAlwaysLoadedSkills: vi.fn().mockReturnValue([]),

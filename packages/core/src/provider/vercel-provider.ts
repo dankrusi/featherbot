@@ -1,4 +1,4 @@
-import { generateText, stepCountIs, streamText } from "ai";
+import { generateObject, generateText, stepCountIs, streamText } from "ai";
 import type { ProviderConfig } from "../config/schema.js";
 import type { LLMToolCall, LLMUsage, ToolDefinition, ToolResult } from "../types.js";
 import { resolveModel } from "./model-resolver.js";
@@ -6,6 +6,9 @@ import { withRetry } from "./retry.js";
 import type {
 	GenerateOptions,
 	GenerateResult,
+	GenerateStructuredOptions,
+	GenerateStructuredResult,
+	LLMMessage,
 	LLMProvider,
 	StreamOptions,
 	StreamPart,
@@ -58,6 +61,25 @@ function buildTools(tools: Record<string, ToolDefinition>) {
 }
 
 const EMPTY_USAGE: LLMUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+
+function mapMessages(messages: LLMMessage[]) {
+	return messages.map((msg) => {
+		if (msg.role === "tool" && msg.toolCallId) {
+			return {
+				role: "tool" as const,
+				content: [
+					{
+						type: "tool-result" as const,
+						toolCallId: msg.toolCallId,
+						toolName: "",
+						output: { type: "text" as const, value: msg.content },
+					},
+				],
+			};
+		}
+		return { role: msg.role as "system" | "user" | "assistant", content: msg.content };
+	});
+}
 
 // biome-ignore lint/suspicious/noExplicitAny: AI SDK stream part types are complex unions, we map to our own StreamPart
 async function* mapFullStream(aiStream: AsyncIterable<any>): AsyncGenerator<StreamPart> {
@@ -156,22 +178,7 @@ export class VercelLLMProvider implements LLMProvider {
 			// biome-ignore lint/suspicious/noExplicitAny: AI SDK tools type is complex, we use our own ToolDefinition interface
 			const aiTools = options.tools ? (buildTools(options.tools) as any) : undefined;
 
-			const messages = options.messages.map((msg) => {
-				if (msg.role === "tool" && msg.toolCallId) {
-					return {
-						role: "tool" as const,
-						content: [
-							{
-								type: "tool-result" as const,
-								toolCallId: msg.toolCallId,
-								toolName: "",
-								output: { type: "text" as const, value: msg.content },
-							},
-						],
-					};
-				}
-				return { role: msg.role as "system" | "user" | "assistant", content: msg.content };
-			});
+			const messages = mapMessages(options.messages);
 
 			const result = await withRetry(() =>
 				generateText({
@@ -230,22 +237,7 @@ export class VercelLLMProvider implements LLMProvider {
 			// biome-ignore lint/suspicious/noExplicitAny: AI SDK tools type is complex, we use our own ToolDefinition interface
 			const aiTools = options.tools ? (buildTools(options.tools) as any) : undefined;
 
-			const messages = options.messages.map((msg) => {
-				if (msg.role === "tool" && msg.toolCallId) {
-					return {
-						role: "tool" as const,
-						content: [
-							{
-								type: "tool-result" as const,
-								toolCallId: msg.toolCallId,
-								toolName: "",
-								output: { type: "text" as const, value: msg.content },
-							},
-						],
-					};
-				}
-				return { role: msg.role as "system" | "user" | "assistant", content: msg.content };
-			});
+			const messages = mapMessages(options.messages);
 
 			const aiResult = await withRetry(() =>
 				streamText({
@@ -307,5 +299,33 @@ export class VercelLLMProvider implements LLMProvider {
 			const message = error instanceof Error ? error.message : String(error);
 			return createErrorStreamResult(message);
 		}
+	}
+
+	async generateStructured<T>(
+		options: GenerateStructuredOptions<T>,
+	): Promise<GenerateStructuredResult<T>> {
+		const modelString = options.model ?? this.defaultModel;
+		const model = resolveModel(modelString, this.providerConfig);
+		const messages = mapMessages(options.messages);
+
+		const result = await withRetry(() =>
+			generateObject({
+				model,
+				// biome-ignore lint/suspicious/noExplicitAny: AI SDK generateObject has complex conditional types
+				messages: messages as any,
+				// biome-ignore lint/suspicious/noExplicitAny: AI SDK generateObject has complex conditional types
+				schema: options.schema as any,
+				schemaName: options.schemaName,
+				schemaDescription: options.schemaDescription,
+				temperature: options.temperature ?? this.defaultTemperature,
+				maxOutputTokens: options.maxTokens ?? this.defaultMaxTokens,
+			}),
+		);
+
+		return {
+			object: result.object as T,
+			usage: mapUsage(result.usage),
+			finishReason: result.finishReason,
+		};
 	}
 }

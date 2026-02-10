@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { MemoryStore } from "./types.js";
 
 /** Approximate token threshold (~2000 tokens ≈ 8000 chars). */
@@ -74,6 +74,50 @@ export class FileMemoryStore implements MemoryStore {
 		}
 
 		return sections.join("\n");
+	}
+
+	async readMemoryFile(): Promise<string> {
+		return this.readFileSafe(this.getMemoryFilePath());
+	}
+
+	async writeMemoryFile(content: string): Promise<void> {
+		const filePath = this.getMemoryFilePath();
+		await mkdir(dirname(filePath), { recursive: true });
+		await writeFile(filePath, content, "utf-8");
+	}
+
+	async readDailyNote(date?: Date): Promise<string> {
+		return this.readFileSafe(this.getDailyNotePath(date));
+	}
+
+	async writeDailyNote(content: string, date?: Date): Promise<void> {
+		const filePath = this.getDailyNotePath(date);
+		await mkdir(dirname(filePath), { recursive: true });
+		await writeFile(filePath, content, "utf-8");
+	}
+
+	async deleteDailyNote(date: Date): Promise<void> {
+		try {
+			await unlink(this.getDailyNotePath(date));
+		} catch (err: unknown) {
+			if (err !== null && typeof err === "object" && "code" in err && err.code === "ENOENT") {
+				return;
+			}
+			throw err;
+		}
+	}
+
+	async listDailyNotes(): Promise<string[]> {
+		const datePattern = /^\d{4}-\d{2}-\d{2}\.md$/;
+		try {
+			const files = await readdir(this.memoryDir);
+			return files.filter((f) => datePattern.test(f)).sort();
+		} catch (err: unknown) {
+			if (err !== null && typeof err === "object" && "code" in err && err.code === "ENOENT") {
+				return [];
+			}
+			throw err;
+		}
 	}
 
 	async readFileSafe(filePath: string): Promise<string> {

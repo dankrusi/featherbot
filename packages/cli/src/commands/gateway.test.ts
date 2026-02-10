@@ -43,12 +43,19 @@ vi.mock("@featherbot/core", () => ({
 	createAgentLoop: vi.fn(() => ({
 		processDirect: mockProcessDirect,
 		processMessage: vi.fn(),
+		getHistory: vi.fn().mockReturnValue([]),
 	})),
 	createMemoryStore: vi.fn(() => ({
 		getMemoryContext: vi.fn().mockResolvedValue(""),
 		getRecentMemories: vi.fn().mockResolvedValue(""),
 		getMemoryFilePath: vi.fn().mockReturnValue(""),
 		getDailyNotePath: vi.fn().mockReturnValue(""),
+		readMemoryFile: vi.fn().mockResolvedValue(""),
+		writeMemoryFile: vi.fn().mockResolvedValue(undefined),
+		readDailyNote: vi.fn().mockResolvedValue(""),
+		writeDailyNote: vi.fn().mockResolvedValue(undefined),
+		deleteDailyNote: vi.fn().mockResolvedValue(undefined),
+		listDailyNotes: vi.fn().mockResolvedValue([]),
 	})),
 	createSkillsLoader: vi.fn(() => ({
 		getAlwaysLoadedSkills: vi.fn().mockReturnValue([]),
@@ -133,7 +140,13 @@ function makeConfig(overrides?: Partial<FeatherBotConfig>): FeatherBotConfig {
 			notifyChannel: undefined,
 			notifyChatId: undefined,
 		},
-		memory: { extractionEnabled: true, extractionIdleMs: 300000 },
+		memory: {
+			extractionEnabled: true,
+			extractionIdleMs: 300000,
+			extractionModel: undefined,
+			extractionMaxAgeMs: 1800000,
+			compactionThreshold: 4000,
+		},
 		subagent: { maxIterations: 15, timeoutMs: 300000 },
 		transcription: {
 			enabled: false,

@@ -218,6 +218,120 @@ describe("FileMemoryStore", () => {
 		});
 	});
 
+	describe("readMemoryFile", () => {
+		it("reads existing MEMORY.md content", async () => {
+			await writeFile(join(tempDir, "memory", "MEMORY.md"), "test content");
+			const result = await store.readMemoryFile();
+			expect(result).toBe("test content");
+		});
+
+		it("returns empty string when MEMORY.md does not exist", async () => {
+			const result = await store.readMemoryFile();
+			expect(result).toBe("");
+		});
+	});
+
+	describe("writeMemoryFile", () => {
+		it("writes content to MEMORY.md", async () => {
+			await store.writeMemoryFile("new content");
+			const { readFile: rf } = await import("node:fs/promises");
+			const content = await rf(join(tempDir, "memory", "MEMORY.md"), "utf-8");
+			expect(content).toBe("new content");
+		});
+
+		it("creates memory directory if it does not exist", async () => {
+			await rm(join(tempDir, "memory"), { recursive: true });
+			await store.writeMemoryFile("content after recreate");
+			const { readFile: rf } = await import("node:fs/promises");
+			const content = await rf(join(tempDir, "memory", "MEMORY.md"), "utf-8");
+			expect(content).toBe("content after recreate");
+		});
+
+		it("overwrites existing content", async () => {
+			await store.writeMemoryFile("first");
+			await store.writeMemoryFile("second");
+			const result = await store.readMemoryFile();
+			expect(result).toBe("second");
+		});
+	});
+
+	describe("readDailyNote", () => {
+		it("reads existing daily note", async () => {
+			const date = new Date("2026-02-07T12:00:00Z");
+			await writeFile(join(tempDir, "memory", "2026-02-07.md"), "daily content");
+			const result = await store.readDailyNote(date);
+			expect(result).toBe("daily content");
+		});
+
+		it("returns empty string when daily note does not exist", async () => {
+			const date = new Date("2026-02-07T12:00:00Z");
+			const result = await store.readDailyNote(date);
+			expect(result).toBe("");
+		});
+	});
+
+	describe("writeDailyNote", () => {
+		it("writes content to daily note for given date", async () => {
+			const date = new Date("2026-02-07T12:00:00Z");
+			await store.writeDailyNote("daily content", date);
+			const { readFile: rf } = await import("node:fs/promises");
+			const content = await rf(join(tempDir, "memory", "2026-02-07.md"), "utf-8");
+			expect(content).toBe("daily content");
+		});
+
+		it("defaults to today when no date given", async () => {
+			await store.writeDailyNote("today content");
+			const today = new Date().toISOString().slice(0, 10);
+			const { readFile: rf } = await import("node:fs/promises");
+			const content = await rf(join(tempDir, "memory", `${today}.md`), "utf-8");
+			expect(content).toBe("today content");
+		});
+	});
+
+	describe("deleteDailyNote", () => {
+		it("deletes an existing daily note", async () => {
+			const date = new Date("2026-02-07T12:00:00Z");
+			await writeFile(join(tempDir, "memory", "2026-02-07.md"), "content");
+			await store.deleteDailyNote(date);
+			const result = await store.readDailyNote(date);
+			expect(result).toBe("");
+		});
+
+		it("does not throw when deleting a non-existent note", async () => {
+			const date = new Date("2026-02-07T12:00:00Z");
+			await expect(store.deleteDailyNote(date)).resolves.toBeUndefined();
+		});
+	});
+
+	describe("listDailyNotes", () => {
+		it("lists daily note files sorted alphabetically", async () => {
+			await writeFile(join(tempDir, "memory", "2026-02-07.md"), "a");
+			await writeFile(join(tempDir, "memory", "2026-02-05.md"), "b");
+			await writeFile(join(tempDir, "memory", "2026-02-09.md"), "c");
+			const result = await store.listDailyNotes();
+			expect(result).toEqual(["2026-02-05.md", "2026-02-07.md", "2026-02-09.md"]);
+		});
+
+		it("filters out non-date files", async () => {
+			await writeFile(join(tempDir, "memory", "MEMORY.md"), "long-term");
+			await writeFile(join(tempDir, "memory", "2026-02-07.md"), "daily");
+			await writeFile(join(tempDir, "memory", "notes.txt"), "random");
+			const result = await store.listDailyNotes();
+			expect(result).toEqual(["2026-02-07.md"]);
+		});
+
+		it("returns empty array when memory directory is empty of date files", async () => {
+			const result = await store.listDailyNotes();
+			expect(result).toEqual([]);
+		});
+
+		it("returns empty array when memory directory does not exist", async () => {
+			await rm(join(tempDir, "memory"), { recursive: true });
+			const result = await store.listDailyNotes();
+			expect(result).toEqual([]);
+		});
+	});
+
 	describe("readFileSafe", () => {
 		it("reads an existing file", async () => {
 			await writeFile(join(tempDir, "memory", "MEMORY.md"), "hello world");

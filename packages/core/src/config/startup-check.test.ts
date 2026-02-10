@@ -41,7 +41,13 @@ function makeConfig(overrides?: Partial<FeatherBotConfig>): FeatherBotConfig {
 			notifyChannel: undefined,
 			notifyChatId: undefined,
 		},
-		memory: { extractionEnabled: true, extractionIdleMs: 300000 },
+		memory: {
+			extractionEnabled: true,
+			extractionIdleMs: 300000,
+			extractionModel: undefined,
+			extractionMaxAgeMs: 1800000,
+			compactionThreshold: 4000,
+		},
 		subagent: { maxIterations: 15, timeoutMs: 300000 },
 		transcription: {
 			enabled: false,

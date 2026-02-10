@@ -148,14 +148,6 @@ export class ContextBuilder {
 			"Use it for recurring awareness tasks, periodic checks, and standing instructions — things the agent should keep an eye on over time.",
 			'Write to it via edit_file when the user mentions something that needs periodic attention (e.g., "keep an eye on my domain renewal", "remind me to drink water", "check if my server is up").',
 			'Use the cron tool for precise time-based triggers (e.g., "at 9am every day"); use HEARTBEAT.md for softer periodic awareness that doesn\'t need exact timing.',
-			"",
-			"### Daily Note Rollup",
-			'If you see a "Previous Notes" section in Memory above, process it on your FIRST response:',
-			"1. Read the previous notes and identify anything worth keeping long-term.",
-			"2. Review observations — promote 🔴 items into the appropriate MEMORY.md section (Facts, Patterns, or Pending).",
-			"3. Delete the processed daily note file using write_file with empty content, or leave it if nothing was worth promoting.",
-			"4. Do this silently — no need to announce it to the user.",
-			"5. Use the recall_recent tool if you need more historical context.",
 		];
 		return lines.join("\n");
 	}

@@ -17,7 +17,7 @@
 - **Tool system** — File I/O, shell execution, web search/fetch, cron scheduling, sub-agent spawning
 - **Skills** — Markdown-driven plugins with two-tier loading (always-on + lazy-loaded)
 - **Sub-agents** — Spawn background tasks with isolated tool sets and timeouts
-- **Memory** — Persistent file-based memory with automatic extraction, daily note rollup, and size-aware context management
+- **Memory** — Persistent file-based memory with deterministic structured extraction, programmatic daily note rollup, and auto-compaction
 - **Session management** — SQLite-backed conversation history with message trimming
 - **Cron & heartbeat** — Scheduled tasks, one-time reminders, and periodic self-reflection
 - **Voice transcription** — Groq or OpenAI Whisper for voice messages in Telegram/WhatsApp
@@ -151,18 +151,24 @@ Spawn background tasks with isolated tool sets (no message, spawn, or cron tools
 
 ## Memory
 
-File-based storage in `workspace/memory/`, managed by the agent via file tools:
+File-based storage in `workspace/memory/` with a two-layer persistence strategy:
 
 | File | Purpose |
 |------|---------|
 | `MEMORY.md` | Long-term memory (Facts, Observed Patterns, Pending) |
-| `YYYY-MM-DD.md` | Daily notes (transient, per-day context) |
+| `YYYY-MM-DD.md` | Daily notes (transient, priority-tagged observations) |
 
-**Daily note rollup** — Yesterday's notes are surfaced automatically. The agent promotes important items into long-term memory and discards the rest, so daily notes don't rot.
+**Inline writes (real-time)** — The agent writes to MEMORY.md via `edit_file` during conversation when the user shares personal info or says "remember this."
 
-**Size guard** — When MEMORY.md grows large (~2000+ tokens), the agent is nudged to consolidate and prune stale entries.
+**Structured extraction (post-idle)** — After 5 minutes of idle (configurable), the LLM returns structured JSON via `generateStructured()` — facts, patterns, pending items, and priority-tagged observations. Code then handles persistence deterministically: parse MEMORY.md, merge with dedup, render, write. No tool calls, no prompt-following — just data in, file out.
 
-**Automatic extraction** — After a conversation goes idle (default: 5 minutes), a background pass reviews the conversation and produces two outputs: (1) a compressed, priority-tagged observation log appended to the daily note (`YYYY-MM-DD.md`) capturing the full conversation narrative, and (2) any new user facts, preferences, or patterns persisted to `MEMORY.md`. Observations are tagged 🔴 important / 🟡 moderate / 🟢 minor so the agent can prioritize during rollup. Progress is logged to console with `[memory]` prefix (start, skip, complete, failure).
+**Max-age safety net** — If the user chats non-stop for 30+ minutes without a gap, extraction fires immediately instead of waiting for idle.
+
+**Programmatic rollup** — After each extraction, daily notes from 1-3 days ago are scanned. Items tagged 🔴 (important) are promoted to MEMORY.md Facts with deduplication. Processed notes are deleted.
+
+**Auto-compaction** — When MEMORY.md exceeds 4000 characters, a second `generateStructured()` call consolidates: merges duplicates, removes contradictions, trims ~30%.
+
+**Shutdown safety** — `dispose()` force-extracts all pending sessions (10s timeout) before the process exits.
 
 **On-demand recall** — The `recall_recent` tool lets the agent pull past daily notes (up to 30 days) without bloating every prompt.
 
@@ -251,7 +257,7 @@ Edit these files to customize your agent's personality, behavior, and proactive 
 ```bash
 pnpm install          # Install dependencies
 pnpm build            # Build all packages
-pnpm test             # Run all tests (682 tests)
+pnpm test             # Run all tests (735 tests)
 pnpm typecheck        # Type checking
 pnpm lint             # Lint with Biome
 ```

@@ -27,6 +27,21 @@ describe("ContextBuilder", () => {
 		return tempDir;
 	}
 
+	function mockMemoryStore(getMemoryContext: () => Promise<string> = async () => "") {
+		return {
+			getMemoryContext,
+			getRecentMemories: async () => "",
+			getMemoryFilePath: () => "",
+			getDailyNotePath: () => "",
+			readMemoryFile: async () => "",
+			writeMemoryFile: async () => {},
+			readDailyNote: async () => "",
+			writeDailyNote: async () => {},
+			deleteDailyNote: async () => {},
+			listDailyNotes: async () => [] as string[],
+		};
+	}
+
 	afterEach(() => {
 		tempDir = undefined;
 	});
@@ -37,15 +52,9 @@ describe("ContextBuilder", () => {
 	});
 
 	it("constructs with optional memoryStore", () => {
-		const mockMemoryStore = {
-			getMemoryContext: async () => "",
-			getRecentMemories: async () => "",
-			getMemoryFilePath: () => "/tmp/memory/MEMORY.md",
-			getDailyNotePath: () => "/tmp/memory/2026-02-07.md",
-		};
 		const builder = new ContextBuilder({
 			...defaultOptions,
-			memoryStore: mockMemoryStore,
+			memoryStore: mockMemoryStore(),
 		});
 		expect(builder).toBeInstanceOf(ContextBuilder);
 	});
@@ -288,12 +297,7 @@ describe("ContextBuilder", () => {
 				...defaultOptions,
 				workspacePath: ws,
 				bootstrapFiles: ["AGENTS.md"],
-				memoryStore: {
-					getMemoryContext: async () => "Some memory",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(async () => "Some memory"),
 			});
 			const { systemPrompt } = await builder.build({
 				channelName: "telegram",
@@ -335,12 +339,7 @@ describe("ContextBuilder", () => {
 				workspacePath: ws,
 				bootstrapFiles: ["AGENTS.md", "SOUL.md"],
 				agentName: "TestBot",
-				memoryStore: {
-					getMemoryContext: async () => "User likes cats",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(async () => "User likes cats"),
 			});
 			const { systemPrompt } = await builder.build({
 				channelName: "discord",
@@ -359,12 +358,7 @@ describe("ContextBuilder", () => {
 		it("includes memory context when memoryStore returns content", async () => {
 			const builder = new ContextBuilder({
 				...defaultOptions,
-				memoryStore: {
-					getMemoryContext: async () => "Remember: user prefers dark mode",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(async () => "Remember: user prefers dark mode"),
 			});
 			const { systemPrompt } = await builder.build();
 			expect(systemPrompt).toContain("## Memory\nRemember: user prefers dark mode");
@@ -373,12 +367,7 @@ describe("ContextBuilder", () => {
 		it("omits memory section when memoryStore returns empty string", async () => {
 			const builder = new ContextBuilder({
 				...defaultOptions,
-				memoryStore: {
-					getMemoryContext: async () => "",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(),
 			});
 			const { systemPrompt } = await builder.build();
 			expect(systemPrompt).not.toContain("## Memory");
@@ -395,12 +384,7 @@ describe("ContextBuilder", () => {
 		it("includes memory management section when memoryStore has content", async () => {
 			const builder = new ContextBuilder({
 				...defaultOptions,
-				memoryStore: {
-					getMemoryContext: async () => "Some facts",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(async () => "Some facts"),
 			});
 			const { systemPrompt } = await builder.build();
 			expect(systemPrompt).toContain("## Memory Management");
@@ -412,12 +396,7 @@ describe("ContextBuilder", () => {
 		it("omits memory management section when memoryStore returns empty", async () => {
 			const builder = new ContextBuilder({
 				...defaultOptions,
-				memoryStore: {
-					getMemoryContext: async () => "",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(),
 			});
 			const { systemPrompt } = await builder.build();
 			expect(systemPrompt).not.toContain("## Memory Management");
@@ -434,12 +413,7 @@ describe("ContextBuilder", () => {
 			const builder = new ContextBuilder({
 				...defaultOptions,
 				workspacePath: ws,
-				memoryStore: {
-					getMemoryContext: async () => "User likes cats",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(async () => "User likes cats"),
 			});
 			const { systemPrompt } = await builder.build();
 			const memoryIdx = systemPrompt.indexOf("## Memory");
@@ -451,12 +425,7 @@ describe("ContextBuilder", () => {
 		it("contains instructions about selective logging", async () => {
 			const builder = new ContextBuilder({
 				...defaultOptions,
-				memoryStore: {
-					getMemoryContext: async () => "Some memory",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(async () => "Some memory"),
 			});
 			const { systemPrompt } = await builder.build();
 			expect(systemPrompt).toContain("remember this");
@@ -474,12 +443,7 @@ describe("ContextBuilder", () => {
 				...defaultOptions,
 				workspacePath: ws,
 				bootstrapFiles: ["AGENTS.md"],
-				memoryStore: {
-					getMemoryContext: async () => "Some memory",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(async () => "Some memory"),
 			});
 			const { systemPrompt } = await builder.build();
 			// Proactive block comes from AGENTS.md (bootstrap), before Memory Management
@@ -489,20 +453,14 @@ describe("ContextBuilder", () => {
 			expect(mgmtIdx).toBeGreaterThan(proactiveIdx);
 		});
 
-		it("contains daily note rollup instructions with 'Previous Notes' wording", async () => {
+		it("contains daily note format documentation but no rollup instructions (rollup is programmatic)", async () => {
 			const builder = new ContextBuilder({
 				...defaultOptions,
-				memoryStore: {
-					getMemoryContext: async () => "Some memory",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(async () => "Some memory"),
 			});
 			const { systemPrompt } = await builder.build();
-			expect(systemPrompt).toContain("### Daily Note Rollup");
-			expect(systemPrompt).toContain("Previous Notes");
-			expect(systemPrompt).toContain("recall_recent");
+			expect(systemPrompt).toContain("### Daily Note Format");
+			expect(systemPrompt).not.toContain("### Daily Note Rollup");
 		});
 	});
 
@@ -560,12 +518,7 @@ describe("ContextBuilder", () => {
 				...defaultOptions,
 				workspacePath: ws,
 				bootstrapFiles: ["USER.md"],
-				memoryStore: {
-					getMemoryContext: async () => "Some memory",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(async () => "Some memory"),
 			});
 			const { systemPrompt } = await builder.build();
 			const bootstrapIdx = systemPrompt.indexOf("## USER.md");
@@ -649,12 +602,7 @@ describe("ContextBuilder", () => {
 				...defaultOptions,
 				workspacePath: ws,
 				skillsLoader: loader,
-				memoryStore: {
-					getMemoryContext: async () => "Some memory",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
+				memoryStore: mockMemoryStore(async () => "Some memory"),
 			});
 			const { systemPrompt } = await builder.build({
 				channelName: "terminal",

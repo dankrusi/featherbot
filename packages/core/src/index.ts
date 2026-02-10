@@ -65,6 +65,8 @@ export type { RetryOptions } from "./provider/index.js";
 export type {
 	GenerateOptions,
 	GenerateResult,
+	GenerateStructuredOptions,
+	GenerateStructuredResult,
 	LLMMessage,
 	LLMProvider,
 	StreamOptions,
@@ -121,8 +123,28 @@ export type {
 	SubagentState,
 	SubagentStatus,
 } from "./agent/index.js";
-export { createMemoryStore, FileMemoryStore, MemoryExtractor } from "./memory/index.js";
-export type { MemoryExtractorOptions, MemoryStore } from "./memory/index.js";
+export {
+	createMemoryStore,
+	FileMemoryStore,
+	MemoryExtractor,
+	ExtractionResultSchema,
+	CompactionResultSchema,
+	parseMemoryMarkdown,
+	renderMemoryMarkdown,
+	mergeExtraction,
+	formatDailyNote,
+	appendToExistingNote,
+	extractImportantItems,
+	performRollup,
+} from "./memory/index.js";
+export type {
+	MemoryExtractorOptions,
+	MemoryStore,
+	ExtractionResult,
+	CompactionResult,
+	ParsedMemory,
+	RollupResult,
+} from "./memory/index.js";
 export {
 	createSkillsLoader,
 	parseFrontmatter,

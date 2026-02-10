@@ -144,10 +144,14 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 	});
 
 	const memoryExtractor = new MemoryExtractor({
-		agentLoop,
+		provider,
+		memoryStore,
+		getHistory: (key) => agentLoop.getHistory(key as `${string}:${string}`),
 		idleMs: config.memory.extractionIdleMs,
 		enabled: config.memory.extractionEnabled,
-		workspacePath: workspace,
+		model: config.memory.extractionModel,
+		maxAgeMs: config.memory.extractionMaxAgeMs,
+		compactionThreshold: config.memory.compactionThreshold,
 	});
 
 	let heartbeatService: HeartbeatService | undefined;
@@ -236,8 +240,8 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 		channelManager,
 		cronService,
 		heartbeatService,
-		onStop: () => {
-			memoryExtractor.dispose();
+		onStop: async () => {
+			await memoryExtractor.dispose();
 			sessionQueue.dispose();
 		},
 	});

@@ -103,6 +103,9 @@ export const TranscriptionConfigSchema = z.object({
 export const MemoryConfigSchema = z.object({
 	extractionEnabled: z.boolean().default(true),
 	extractionIdleMs: z.number().int().positive().default(300000),
+	extractionModel: z.string().optional(),
+	extractionMaxAgeMs: z.number().int().positive().default(1800000),
+	compactionThreshold: z.number().int().positive().default(4000),
 });
 
 export const FeatherBotConfigSchema = z.object({

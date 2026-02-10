@@ -1,3 +1,4 @@
+import type { ZodType } from "zod";
 import type { LLMToolCall, LLMUsage, ToolDefinition, ToolResult } from "../types.js";
 
 export interface LLMMessage {
@@ -19,6 +20,22 @@ export interface GenerateResult {
 	text: string;
 	toolCalls: LLMToolCall[];
 	toolResults: ToolResult[];
+	usage: LLMUsage;
+	finishReason: string;
+}
+
+export interface GenerateStructuredOptions<T> {
+	model?: string;
+	messages: LLMMessage[];
+	schema: ZodType<T>;
+	schemaName?: string;
+	schemaDescription?: string;
+	temperature?: number;
+	maxTokens?: number;
+}
+
+export interface GenerateStructuredResult<T> {
+	object: T;
 	usage: LLMUsage;
 	finishReason: string;
 }
@@ -45,4 +62,7 @@ export type StreamOptions = GenerateOptions;
 export interface LLMProvider {
 	generate(options: GenerateOptions): Promise<GenerateResult>;
 	stream(options: StreamOptions): Promise<StreamResult>;
+	generateStructured<T>(
+		options: GenerateStructuredOptions<T>,
+	): Promise<GenerateStructuredResult<T>>;
 }

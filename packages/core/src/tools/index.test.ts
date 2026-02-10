@@ -14,6 +14,12 @@ function makeMockMemoryStore(): MemoryStore {
 		getRecentMemories: async () => "",
 		getMemoryFilePath: () => "",
 		getDailyNotePath: () => "",
+		readMemoryFile: async () => "",
+		writeMemoryFile: async () => {},
+		readDailyNote: async () => "",
+		writeDailyNote: async () => {},
+		deleteDailyNote: async () => {},
+		listDailyNotes: async () => [],
 	};
 }
 

@@ -1,74 +1,84 @@
-import { readdir, unlink } from "node:fs/promises";
-import { join } from "node:path";
-
-interface AgentLoopLike {
-	processDirect(
-		message: string,
-		options?: { systemPrompt?: string; sessionKey?: string; skipHistory?: boolean },
-	): Promise<{
-		text: string;
-		toolResults?: Array<{ toolName: string; content: string }>;
-	}>;
-}
+import type { LLMMessage, LLMProvider } from "../provider/types.js";
+import { appendToExistingNote, formatDailyNote } from "./daily-note.js";
+import { CompactionResultSchema, ExtractionResultSchema } from "./extraction-schema.js";
+import { mergeExtraction, parseMemoryMarkdown, renderMemoryMarkdown } from "./memory-markdown.js";
+import { performRollup } from "./rollup.js";
+import type { MemoryStore } from "./types.js";
 
 export interface MemoryExtractorOptions {
-	agentLoop: AgentLoopLike;
+	provider: LLMProvider;
+	memoryStore: MemoryStore;
+	getHistory: (sessionKey: string) => LLMMessage[];
 	idleMs?: number;
+	maxAgeMs?: number;
+	compactionThreshold?: number;
 	enabled?: boolean;
-	workspacePath?: string;
+	model?: string;
 }
 
-export function buildExtractionPrompt(sessionKey: string, date: string): string {
-	return `Review the conversation above. You have TWO independent jobs. Do BOTH.
+export function buildExtractionPrompt(currentMemory: string): string {
+	return `You are a memory extraction assistant. Analyze the conversation above and extract structured information.
 
-## Job 1 — Update MEMORY.md (long-term memory)
+Current MEMORY.md content:
+---
+${currentMemory || "(empty)"}
+---
 
-This is the most important job. MEMORY.md is permanent — it carries across all future conversations.
+Extract the following from the conversation:
 
-1. Use read_file to read memory/MEMORY.md.
-2. Review the conversation for ANY of these:
-   - Personal details, projects, hobbies, interests → add to **Facts**
-   - Recurring behaviors or preferences → add to **Observed Patterns**
-   - Follow-ups, deadlines, things to circle back on → add to **Pending**
-3. If there are items in the conversation not already in MEMORY.md, use edit_file to add them.
-4. Even if a previous extraction wrote to the daily note, MEMORY.md may still be missing those facts. Always check.
+1. **facts**: Personal details, projects, preferences, things the user wants remembered. Only include NEW facts not already in MEMORY.md.
+2. **patterns**: Recurring behaviors or preferences observed. Only include NEW patterns.
+3. **pending**: Follow-ups, reminders, things to circle back on. Only include NEW pending items.
+4. **resolvedPending**: Any pending items from MEMORY.md that have been completed or are no longer relevant.
+5. **observations**: Notable observations from this conversation for the daily note, each with a priority:
+   - "red": Important — decisions made, action items, explicit requests to remember, strong preferences
+   - "yellow": Moderate — topics discussed, tasks worked on, notable context
+   - "green": Minor — informational details, passing mentions
 
-## Job 2 — Update daily note (memory/${date}.md)
+Set "skip" to true ONLY if the conversation is truly empty (just greetings with no substance).
+Be concise — compress, don't transcribe.`;
+}
 
-1. Use read_file to check if memory/${date}.md already exists.
-2. If it exists, check if the section "## ${sessionKey}" is already present.
-   - If the section exists with the same observations, do NOT rewrite it.
-   - If the section is missing or has new observations to add, read the content, merge, and use write_file.
-3. If the file does NOT exist, use write_file to create it with heading "# ${date}" followed by your observations.
+function buildCompactionPrompt(currentMemory: string): string {
+	return `You are a memory compaction assistant. The MEMORY.md file has grown too large and needs consolidation.
 
-Use the session header "## ${sessionKey}" then list priority-tagged observations:
+Current MEMORY.md content:
+---
+${currentMemory}
+---
 
-- 🔴 Important — decisions made, action items, explicit requests to remember, strong preferences
-- 🟡 Moderate — topics discussed, tasks worked on, notable context, preferences expressed
-- 🟢 Minor — informational details, small talk, passing mentions
+Consolidate the memory:
+1. Merge duplicate or overlapping facts into single entries
+2. Remove outdated or contradicted information (keep the newer version)
+3. Combine related patterns
+4. Remove pending items that appear resolved based on facts
+5. Keep the same categories: facts, patterns, pending
 
-Keep each observation to one concise line.
-
-## Rules
-
-- Only SKIP if the conversation is truly empty (just "hi" with no follow-up or substantive content).
-- You MUST use write_file or edit_file to persist — just responding with text does nothing.
-- Be concise — compress, don't transcribe.`;
+Return the compacted version. Aim to reduce size by ~30% while preserving all important information.`;
 }
 
 export class MemoryExtractor {
-	private readonly agentLoop: AgentLoopLike;
+	private readonly provider: LLMProvider;
+	private readonly memoryStore: MemoryStore;
+	private readonly getHistoryFn: (sessionKey: string) => LLMMessage[];
 	private readonly idleMs: number;
+	private readonly maxAgeMs: number;
+	private readonly compactionThreshold: number;
 	private readonly enabled: boolean;
-	private readonly workspacePath?: string;
+	private readonly model?: string;
 	private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
 	private readonly running = new Set<string>();
+	private readonly lastExtraction = new Map<string, number>();
 
 	constructor(options: MemoryExtractorOptions) {
-		this.agentLoop = options.agentLoop;
+		this.provider = options.provider;
+		this.memoryStore = options.memoryStore;
+		this.getHistoryFn = options.getHistory;
 		this.idleMs = options.idleMs ?? 300_000;
+		this.maxAgeMs = options.maxAgeMs ?? 1_800_000;
+		this.compactionThreshold = options.compactionThreshold ?? 4000;
 		this.enabled = options.enabled ?? true;
-		this.workspacePath = options.workspacePath;
+		this.model = options.model;
 	}
 
 	scheduleExtraction(sessionKey: string): void {
@@ -85,54 +95,136 @@ export class MemoryExtractor {
 		}, this.idleMs);
 
 		this.timers.set(sessionKey, timer);
+
+		// Check max-age: force extraction if it's been too long
+		const lastTime = this.lastExtraction.get(sessionKey);
+		if (lastTime !== undefined && Date.now() - lastTime >= this.maxAgeMs) {
+			clearTimeout(timer);
+			this.timers.delete(sessionKey);
+			void this.extract(sessionKey);
+		}
 	}
 
-	dispose(): void {
+	async dispose(): Promise<void> {
+		// Clear all idle timers
 		for (const timer of this.timers.values()) {
 			clearTimeout(timer);
 		}
+
+		// Collect sessions that have pending timers (not yet extracted)
+		const pendingSessions = [...this.timers.keys()];
 		this.timers.clear();
+
+		// Force-extract all pending sessions with a timeout
+		if (pendingSessions.length > 0) {
+			const extractPromises = pendingSessions.map((key) => this.extract(key));
+			await Promise.race([
+				Promise.allSettled(extractPromises),
+				new Promise((resolve) => setTimeout(resolve, 10_000)),
+			]);
+		}
 	}
 
 	private async extract(sessionKey: string): Promise<void> {
 		if (this.running.has(sessionKey)) return;
 		this.running.add(sessionKey);
 		console.log(`[memory] extracting observations for ${sessionKey}...`);
+
 		try {
-			const today = new Date().toISOString().slice(0, 10);
-			const prompt = buildExtractionPrompt(sessionKey, today);
-			const result = await this.agentLoop.processDirect(prompt, {
-				sessionKey,
-				skipHistory: true,
+			// 1. Get conversation history
+			const history = this.getHistoryFn(sessionKey);
+			const textMessages = history
+				.filter((m) => (m.role === "user" || m.role === "assistant") && m.content.trim())
+				.slice(-50);
+
+			if (textMessages.length === 0) {
+				console.log(`[memory] extraction skipped for ${sessionKey} (no messages)`);
+				return;
+			}
+
+			// 2. Read current MEMORY.md
+			const currentMemory = await this.memoryStore.readMemoryFile();
+
+			// 3. Call generateStructured for extraction
+			const extractionPrompt = buildExtractionPrompt(currentMemory);
+			const messages: LLMMessage[] = [
+				{ role: "system", content: extractionPrompt },
+				...textMessages,
+			];
+
+			const result = await this.provider.generateStructured({
+				model: this.model,
+				messages,
+				schema: ExtractionResultSchema,
+				schemaName: "ExtractionResult",
+				schemaDescription: "Structured memory extraction from conversation",
+				temperature: 0.3,
 			});
-			const skipped = result.text.trim().toUpperCase() === "SKIP";
-			if (skipped) {
+
+			const extraction = result.object;
+
+			// 4. Check skip
+			if (
+				extraction.skip &&
+				extraction.facts.length === 0 &&
+				extraction.observations.length === 0
+			) {
 				console.log(`[memory] extraction skipped for ${sessionKey} (nothing new)`);
-			} else {
-				const results = result.toolResults ?? [];
-				const writes = results.filter(
-					(tr) => tr.toolName === "write_file" || tr.toolName === "edit_file",
-				);
-				const failedWrites = writes.filter((tr) => tr.content.startsWith("Error"));
-				const successfulWrites = writes.length - failedWrites.length;
+				this.lastExtraction.set(sessionKey, Date.now());
+				return;
+			}
 
-				if (failedWrites.length > 0) {
-					console.warn(
-						`[memory] extraction had ${failedWrites.length} failed write(s) for ${sessionKey}`,
-					);
+			// 5. Deterministic merge into MEMORY.md
+			const parsed = parseMemoryMarkdown(currentMemory);
+			const merged = mergeExtraction(parsed, extraction);
+			const rendered = renderMemoryMarkdown(merged);
+			await this.memoryStore.writeMemoryFile(rendered);
+
+			// 6. Create/update daily note if observations exist
+			if (extraction.observations.length > 0) {
+				const today = new Date().toISOString().slice(0, 10);
+				const existingNote = await this.memoryStore.readDailyNote();
+				let noteContent: string;
+				if (existingNote.trim()) {
+					noteContent = appendToExistingNote(existingNote, sessionKey, extraction.observations);
+				} else {
+					noteContent = formatDailyNote(today, sessionKey, extraction.observations);
 				}
-				if (successfulWrites > 0) {
+				await this.memoryStore.writeDailyNote(noteContent);
+			}
+
+			// 7. Perform rollup (promote old daily note 🔴 items)
+			try {
+				const rollupResult = await performRollup(this.memoryStore);
+				if (rollupResult.promotedCount > 0) {
 					console.log(
-						`[memory] extraction complete for ${sessionKey} (${successfulWrites} file write(s))`,
+						`[memory] rollup promoted ${rollupResult.promotedCount} item(s), deleted ${rollupResult.deletedNotes.length} note(s)`,
 					);
-				} else if (writes.length === 0) {
-					console.warn(`[memory] extraction returned text but wrote no files for ${sessionKey}`);
+				}
+			} catch (err) {
+				console.warn("[memory] rollup failed:", err);
+			}
+
+			// 8. Compaction if MEMORY.md is too large
+			const updatedMemory = await this.memoryStore.readMemoryFile();
+			if (updatedMemory.length > this.compactionThreshold) {
+				try {
+					await this.compact(updatedMemory);
+				} catch (err) {
+					console.warn("[memory] compaction failed:", err);
 				}
 			}
 
-			if (this.workspacePath) {
-				await this.cleanupOldNotes();
-			}
+			// 9. Cleanup old notes
+			await this.cleanupOldNotes();
+
+			this.lastExtraction.set(sessionKey, Date.now());
+
+			const factCount = extraction.facts.length;
+			const obsCount = extraction.observations.length;
+			console.log(
+				`[memory] extraction complete for ${sessionKey} (${factCount} fact(s), ${obsCount} observation(s))`,
+			);
 		} catch (err) {
 			console.error(`[memory] extraction failed for ${sessionKey}:`, err);
 		} finally {
@@ -140,22 +232,39 @@ export class MemoryExtractor {
 		}
 	}
 
+	private async compact(currentContent: string): Promise<void> {
+		const prompt = buildCompactionPrompt(currentContent);
+		const result = await this.provider.generateStructured({
+			model: this.model,
+			messages: [{ role: "user", content: prompt }],
+			schema: CompactionResultSchema,
+			schemaName: "CompactionResult",
+			schemaDescription: "Compacted memory content",
+			temperature: 0.2,
+		});
+
+		const compacted = result.object;
+		const rendered = renderMemoryMarkdown({
+			facts: compacted.facts,
+			patterns: compacted.patterns,
+			pending: compacted.pending,
+		});
+		await this.memoryStore.writeMemoryFile(rendered);
+		console.log("[memory] compaction complete");
+	}
+
 	private async cleanupOldNotes(): Promise<void> {
-		if (!this.workspacePath) return;
 		try {
-			const memoryDir = join(this.workspacePath, "memory");
-			const files = await readdir(memoryDir);
-			const datePattern = /^\d{4}-\d{2}-\d{2}\.md$/;
+			const notes = await this.memoryStore.listDailyNotes();
 			const cutoff = new Date();
 			cutoff.setDate(cutoff.getDate() - 30);
 			const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-			for (const file of files) {
-				if (datePattern.test(file)) {
-					const dateStr = file.slice(0, 10);
-					if (dateStr < cutoffStr) {
-						await unlink(join(memoryDir, file));
-					}
+			for (const note of notes) {
+				const dateStr = note.slice(0, 10);
+				if (dateStr < cutoffStr) {
+					const date = new Date(`${dateStr}T00:00:00Z`);
+					await this.memoryStore.deleteDailyNote(date);
 				}
 			}
 		} catch {

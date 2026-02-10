@@ -26,6 +26,9 @@ function makeMockProvider(
 		stream: async () => {
 			throw new Error("stream not implemented");
 		},
+		generateStructured: async () => {
+			throw new Error("generateStructured not implemented");
+		},
 	};
 }
 
