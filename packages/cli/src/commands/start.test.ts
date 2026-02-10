@@ -51,8 +51,22 @@ vi.mock("@featherbot/core", () => ({
 		},
 		session: { dbPath: "", maxMessages: 50 },
 		cron: { enabled: false, storePath: "" },
-		heartbeat: { enabled: false, intervalMs: 600000, heartbeatFile: "HEARTBEAT.md" },
+		heartbeat: {
+			enabled: false,
+			intervalMs: 600000,
+			heartbeatFile: "HEARTBEAT.md",
+			notifyChannel: undefined,
+			notifyChatId: undefined,
+		},
+		memory: { extractionEnabled: true, extractionIdleMs: 300000 },
 		subagent: { maxIterations: 15, timeoutMs: 300000 },
+		transcription: {
+			enabled: false,
+			provider: "groq" as const,
+			apiKey: "",
+			model: "",
+			maxDurationSeconds: 120,
+		},
 	})),
 	checkStartupConfig: vi.fn(() => ({ ready: true, errors: [], warnings: [] })),
 }));
