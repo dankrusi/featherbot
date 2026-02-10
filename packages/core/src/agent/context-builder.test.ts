@@ -464,9 +464,16 @@ describe("ContextBuilder", () => {
 			expect(systemPrompt).toContain("Do NOT log every message");
 		});
 
-		it("contains proactive observation section", async () => {
+		it("proactive memory exception is in AGENTS.md, not memory management", async () => {
+			const ws = await makeTempWorkspace();
+			await writeFile(
+				join(ws, "AGENTS.md"),
+				"# Agent Behavior\n\n### Exception — Memory Is Always Proactive\n\nObserving and recording info is your job.",
+			);
 			const builder = new ContextBuilder({
 				...defaultOptions,
+				workspacePath: ws,
+				bootstrapFiles: ["AGENTS.md"],
 				memoryStore: {
 					getMemoryContext: async () => "Some memory",
 					getRecentMemories: async () => "",
@@ -475,26 +482,11 @@ describe("ContextBuilder", () => {
 				},
 			});
 			const { systemPrompt } = await builder.build();
-			expect(systemPrompt).toContain("### Proactive Observation");
-			expect(systemPrompt).toContain("naturally notices and remembers things");
-			expect(systemPrompt).toContain('do NOT need the user to say "remember this"');
-		});
-
-		it("proactive observation appears before how-to section", async () => {
-			const builder = new ContextBuilder({
-				...defaultOptions,
-				memoryStore: {
-					getMemoryContext: async () => "Some memory",
-					getRecentMemories: async () => "",
-					getMemoryFilePath: () => "",
-					getDailyNotePath: () => "",
-				},
-			});
-			const { systemPrompt } = await builder.build();
-			const proactiveIdx = systemPrompt.indexOf("### Proactive Observation");
-			const howToIdx = systemPrompt.indexOf("### How to Update Memory");
+			// Proactive block comes from AGENTS.md (bootstrap), before Memory Management
+			const proactiveIdx = systemPrompt.indexOf("Memory Is Always Proactive");
+			const mgmtIdx = systemPrompt.indexOf("## Memory Management");
 			expect(proactiveIdx).toBeGreaterThanOrEqual(0);
-			expect(howToIdx).toBeGreaterThan(proactiveIdx);
+			expect(mgmtIdx).toBeGreaterThan(proactiveIdx);
 		});
 
 		it("contains daily note rollup instructions with 'Previous Notes' wording", async () => {

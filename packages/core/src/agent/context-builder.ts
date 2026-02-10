@@ -119,18 +119,6 @@ export class ContextBuilder {
 	private buildMemoryManagementSection(): string {
 		const lines = [
 			"## Memory Management",
-			"",
-			"### Proactive Observation",
-			"You are an attentive assistant who naturally notices and remembers things.",
-			'You do NOT need the user to say "remember this" — just observe and act:',
-			"- Personal details (name, location, job, family) → update MEMORY.md immediately",
-			"- Preferences (format, tone, tools, food, schedule) → persist",
-			"- Decisions and goals → record",
-			"- Deadlines, events, follow-ups → add to Pending",
-			"- Recurring patterns across conversations → note in Observed Patterns",
-			'Updating memory is part of your core job — never "over-acting." Do it silently.',
-			"",
-			"### How to Update Memory",
 			"You have a memory file at memory/MEMORY.md with sections: Facts, Observed Patterns, and Pending.",
 			"When you learn something worth remembering, you MUST call edit_file on memory/MEMORY.md to persist it. Never claim you stored something in memory without a successful edit_file result.",
 			"Only log what matters:",
