@@ -18,6 +18,7 @@ function makeConfig(overrides?: Partial<FeatherBotConfig>): FeatherBotConfig {
 			telegram: { enabled: false, token: "", allowFrom: [] },
 			whatsapp: { enabled: false, allowFrom: [], authDir: "~/.featherbot/whatsapp-auth" },
 			discord: { enabled: false, token: "" },
+			email: { enabled: false, imap: { host: "", port: 993, auth: { user: "", pass: "" }, tls: true }, smtp: { host: "", port: 587, auth: { user: "", pass: "" }, tls: true }, mailbox: "INBOX", allowFrom: [], pollInterval: 60000 },
 		},
 		providers: {
 			anthropic: { apiKey: "sk-ant-test" },
@@ -89,6 +90,7 @@ describe("checkStartupConfig", () => {
 					telegram: { enabled: true, token: "", allowFrom: [] },
 					whatsapp: { enabled: false, allowFrom: [], authDir: "~/.featherbot/whatsapp-auth" },
 					discord: { enabled: false, token: "" },
+					email: { enabled: false, imap: { host: "", port: 993, auth: { user: "", pass: "" }, tls: true }, smtp: { host: "", port: 587, auth: { user: "", pass: "" }, tls: true }, mailbox: "INBOX", allowFrom: [], pollInterval: 60000 },
 				},
 			}),
 		);
@@ -103,6 +105,7 @@ describe("checkStartupConfig", () => {
 					telegram: { enabled: false, token: "", allowFrom: [] },
 					whatsapp: { enabled: true, allowFrom: [], authDir: "~/.featherbot/whatsapp-auth" },
 					discord: { enabled: false, token: "" },
+					email: { enabled: false, imap: { host: "", port: 993, auth: { user: "", pass: "" }, tls: true }, smtp: { host: "", port: 587, auth: { user: "", pass: "" }, tls: true }, mailbox: "INBOX", allowFrom: [], pollInterval: 60000 },
 				},
 			}),
 		);

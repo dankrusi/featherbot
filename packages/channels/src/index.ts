@@ -14,3 +14,5 @@ export type { AudioTranscriber, ChannelOptions, ChannelStatus } from "./types.js
 export { WhatsAppChannel } from "./whatsapp.js";
 export type { WhatsAppChannelOptions } from "./whatsapp.js";
 export { extractWhatsAppText } from "./whatsapp-message.js";
+export { EmailChannel } from "./email.js";
+export type { EmailChannelOptions } from "./email.js";

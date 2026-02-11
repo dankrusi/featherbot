@@ -5,6 +5,7 @@ import { MessageBus } from "@featherbot/bus";
 import {
 	BusAdapter,
 	ChannelManager,
+	EmailChannel,
 	SessionQueue,
 	TelegramChannel,
 	TerminalChannel,
@@ -291,6 +292,19 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 		);
 	}
 
+	if (config.channels.email.enabled && config.channels.email.imap.host) {
+		channelManager.register(
+			new EmailChannel({
+				bus,
+				imap: config.channels.email.imap,
+				smtp: config.channels.email.smtp,
+				mailbox: config.channels.email.mailbox,
+				pollInterval: config.channels.email.pollInterval,
+				allowFrom: config.channels.email.allowFrom,
+			}),
+		);
+	}
+
 	bus.subscribe("message:inbound", (event) => {
 		refreshUserTimezone();
 		maybeSetMemoryTimezone(userTimezone);
@@ -342,6 +356,9 @@ export async function runGateway(): Promise<void> {
 	}
 	if (config.channels.whatsapp.enabled) {
 		console.log("WhatsApp: connected");
+	}
+	if (config.channels.email.enabled) {
+		console.log("Email: connected");
 	}
 	if (config.cron.enabled) {
 		console.log("Cron scheduler: enabled");

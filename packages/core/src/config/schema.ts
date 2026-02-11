@@ -28,10 +28,44 @@ export const DiscordChannelConfigSchema = z.object({
 	token: z.string().default(""),
 });
 
+export const EmailChannelConfigSchema = z.object({
+	enabled: z.boolean().default(false),
+	imap: z
+		.object({
+			host: z.string().default(""),
+			port: z.number().default(993),
+			auth: z
+				.object({
+					user: z.string().default(""),
+					pass: z.string().default(""),
+				})
+				.default({}),
+			tls: z.boolean().default(true),
+		})
+		.default({}),
+	smtp: z
+		.object({
+			host: z.string().default(""),
+			port: z.number().default(587),
+			auth: z
+				.object({
+					user: z.string().default(""),
+					pass: z.string().default(""),
+				})
+				.default({}),
+			tls: z.boolean().default(true),
+		})
+		.default({}),
+	mailbox: z.string().default("INBOX"),
+	pollInterval: z.number().default(60000),
+	allowFrom: z.array(z.string()).default([]),
+});
+
 export const ChannelConfigSchema = z.object({
 	telegram: TelegramChannelConfigSchema.default({}),
 	whatsapp: WhatsAppChannelConfigSchema.default({}),
 	discord: DiscordChannelConfigSchema.default({}),
+	email: EmailChannelConfigSchema.default({}),
 });
 
 export const ProviderEntrySchema = z.object({
@@ -133,4 +167,5 @@ export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
 export type SubagentConfig = z.infer<typeof SubagentConfigSchema>;
 export type TranscriptionConfig = z.infer<typeof TranscriptionConfigSchema>;
 export type WebFetchToolConfig = z.infer<typeof WebFetchToolConfigSchema>;
+export type EmailChannelConfig = z.infer<typeof EmailChannelConfigSchema>;
 export type FeatherBotConfig = z.infer<typeof FeatherBotConfigSchema>;
