@@ -74,6 +74,7 @@ export type {
 	StreamResult,
 } from "./provider/index.js";
 export {
+	CheckEmailTool,
 	createToolRegistry,
 	CronTool,
 	EditFileTool,
@@ -81,6 +82,7 @@ export {
 	ListDirTool,
 	ReadFileTool,
 	RecallRecentTool,
+	SendEmailTool,
 	SpawnTool,
 	SubagentStatusTool,
 	ToolRegistry,
@@ -88,12 +90,14 @@ export {
 } from "./tools/index.js";
 export { isWithinWorkspace, resolvePath, validatePath } from "./tools/index.js";
 export type {
+	CheckEmailToolOptions,
 	EditFileToolOptions,
 	ExecToolOptions,
 	ListDirToolOptions,
 	PathValidationResult,
 	ReadFileToolOptions,
 	RecallRecentToolOptions,
+	SendEmailToolOptions,
 	SpawnToolOriginContext,
 	Tool,
 	ToolExecutionResult,

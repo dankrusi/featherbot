@@ -33,6 +33,12 @@ export function checkStartupConfig(config: FeatherBotConfig): StartupCheckResult
 		);
 	}
 
+	if (config.channels.email.enabled && !config.channels.email.imap.host) {
+		errors.push(
+			"Email is enabled but no IMAP host is set. Add channels.email.imap.host to your config.",
+		);
+	}
+
 	if (
 		config.heartbeat.enabled &&
 		(!config.heartbeat.notifyChannel || !config.heartbeat.notifyChatId)

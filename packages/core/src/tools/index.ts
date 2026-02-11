@@ -54,7 +54,11 @@ export function createToolRegistry(
 	return registry;
 }
 
+export { CheckEmailTool } from "./check-email-tool.js";
+export type { CheckEmailToolOptions } from "./check-email-tool.js";
 export { CronTool } from "./cron-tool.js";
+export { SendEmailTool } from "./send-email-tool.js";
+export type { SendEmailToolOptions } from "./send-email-tool.js";
 export { SpawnTool, SubagentStatusTool } from "./spawn-tool.js";
 export type { SpawnToolOriginContext } from "./spawn-tool.js";
 export { EditFileTool } from "./edit-file-tool.js";

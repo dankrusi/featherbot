@@ -12,10 +12,12 @@ import {
 	WhatsAppChannel,
 } from "@featherbot/channels";
 import {
+	CheckEmailTool,
 	CronTool,
 	Gateway,
 	MemoryExtractor,
 	RecallRecentTool,
+	SendEmailTool,
 	SpawnTool,
 	SubagentManager,
 	SubagentStatusTool,
@@ -216,10 +218,7 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 					const lastSent = heartbeatState.lastProactiveSentAt
 						? new Date(heartbeatState.lastProactiveSentAt)
 						: undefined;
-					if (
-						lastSent &&
-						getDateKey(lastSent, userTimezone) === getDateKey(now, userTimezone)
-					) {
+					if (lastSent && getDateKey(lastSent, userTimezone) === getDateKey(now, userTimezone)) {
 						console.log("[metrics] proactive_blocked_daily_limit");
 						return;
 					}
@@ -301,6 +300,29 @@ export function createGateway(config: FeatherBotConfig): Gateway {
 				mailbox: config.channels.email.mailbox,
 				pollInterval: config.channels.email.pollInterval,
 				allowFrom: config.channels.email.allowFrom,
+			}),
+		);
+	}
+
+	if (config.channels.email.enabled && config.channels.email.smtp.host) {
+		toolRegistry.register(
+			new SendEmailTool({
+				host: config.channels.email.smtp.host,
+				port: config.channels.email.smtp.port,
+				auth: config.channels.email.smtp.auth,
+				tls: config.channels.email.smtp.tls,
+			}),
+		);
+	}
+
+	if (config.channels.email.enabled && config.channels.email.imap.host) {
+		toolRegistry.register(
+			new CheckEmailTool({
+				host: config.channels.email.imap.host,
+				port: config.channels.email.imap.port,
+				auth: config.channels.email.imap.auth,
+				tls: config.channels.email.imap.tls,
+				mailbox: config.channels.email.mailbox,
 			}),
 		);
 	}

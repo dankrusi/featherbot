@@ -28,7 +28,10 @@ export async function runStart(): Promise<void> {
 		process.exit(1);
 	}
 
-	const hasChannels = config.channels.telegram.enabled || config.channels.whatsapp.enabled;
+	const hasChannels =
+		config.channels.telegram.enabled ||
+		config.channels.whatsapp.enabled ||
+		config.channels.email.enabled;
 
 	if (hasChannels) {
 		await runGateway();

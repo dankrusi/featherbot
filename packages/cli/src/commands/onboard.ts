@@ -103,14 +103,35 @@ export async function runOnboard(options: OnboardOptions = {}): Promise<void> {
 			whatsappEnabled = true;
 		}
 
-		// Step 7: Web search (Brave API)
+		// Step 7: Email setup
+		let emailEnabled = false;
+		let emailImapHost = "";
+		let emailImapPort = 993;
+		let emailSmtpHost = "";
+		let emailSmtpPort = 587;
+		let emailUser = "";
+		let emailPass = "";
+		const emailAnswer = await rl.question("Enable Email? (y/N) ");
+		if (emailAnswer.trim().toLowerCase() === "y") {
+			emailEnabled = true;
+			emailImapHost = (await rl.question("IMAP host (e.g. imap.gmail.com): ")).trim();
+			const imapPortAnswer = (await rl.question("IMAP port [993]: ")).trim();
+			if (imapPortAnswer) emailImapPort = Number.parseInt(imapPortAnswer, 10);
+			emailSmtpHost = (await rl.question("SMTP host (e.g. smtp.gmail.com): ")).trim();
+			const smtpPortAnswer = (await rl.question("SMTP port [587]: ")).trim();
+			if (smtpPortAnswer) emailSmtpPort = Number.parseInt(smtpPortAnswer, 10);
+			emailUser = (await rl.question("Email address: ")).trim();
+			emailPass = (await rl.question("Email password / app password: ")).trim();
+		}
+
+		// Step 8: Web search (Brave API)
 		let braveApiKey = "";
 		output.write("\nWeb search lets your agent look things up online (uses Brave Search).\n");
 		output.write("Get a free API key at https://brave.com/search/api/\n");
 		const braveAnswer = await rl.question("Brave Search API key (Enter to skip): ");
 		braveApiKey = braveAnswer.trim();
 
-		// Step 8: Voice transcription (only if a messaging channel is enabled)
+		// Step 9: Voice transcription (only if a messaging channel is enabled)
 		let transcriptionEnabled = false;
 		let transcriptionProvider: "groq" | "openai" = "groq";
 		let transcriptionApiKey = "";
@@ -150,6 +171,19 @@ export async function runOnboard(options: OnboardOptions = {}): Promise<void> {
 				},
 				whatsapp: {
 					enabled: whatsappEnabled,
+				},
+				email: {
+					enabled: emailEnabled,
+					imap: {
+						host: emailImapHost,
+						port: emailImapPort,
+						auth: { user: emailUser, pass: emailPass },
+					},
+					smtp: {
+						host: emailSmtpHost,
+						port: emailSmtpPort,
+						auth: { user: emailUser, pass: emailPass },
+					},
 				},
 			},
 			tools: {

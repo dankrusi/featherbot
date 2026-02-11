@@ -4,8 +4,10 @@ import { join, resolve } from "node:path";
 import { MessageBus } from "@featherbot/bus";
 import { BusAdapter, ChannelManager, TerminalChannel } from "@featherbot/channels";
 import {
+	CheckEmailTool,
 	MemoryExtractor,
 	RecallRecentTool,
+	SendEmailTool,
 	checkStartupConfig,
 	createAgentLoop,
 	createMemoryStore,
@@ -119,6 +121,27 @@ export async function runRepl(): Promise<void> {
 	};
 	maybeSetMemoryTimezone(userTimezone);
 	toolRegistry.register(new RecallRecentTool({ memoryStore }));
+	if (config.channels.email.enabled && config.channels.email.smtp.host) {
+		toolRegistry.register(
+			new SendEmailTool({
+				host: config.channels.email.smtp.host,
+				port: config.channels.email.smtp.port,
+				auth: config.channels.email.smtp.auth,
+				tls: config.channels.email.smtp.tls,
+			}),
+		);
+	}
+	if (config.channels.email.enabled && config.channels.email.imap.host) {
+		toolRegistry.register(
+			new CheckEmailTool({
+				host: config.channels.email.imap.host,
+				port: config.channels.email.imap.port,
+				auth: config.channels.email.imap.auth,
+				tls: config.channels.email.imap.tls,
+				mailbox: config.channels.email.mailbox,
+			}),
+		);
+	}
 	const skillsLoader = createSkillsLoader({ workspacePath: workspace });
 	const agentLoop = createAgentLoop(config, {
 		toolRegistry,
